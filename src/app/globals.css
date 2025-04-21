@@ -1,0 +1,186 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  height: 100%;
+}
+
+.section_bottom_margin {
+  padding: 0px 0px 20px 0px;
+}
+
+:root {
+  --foreground-rgb: 0, 0, 0;
+  --background-start-rgb: 214, 219, 220;
+  --background-end-rgb: 255, 255, 255;
+}
+
+
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: linear-gradient(to bottom,
+      transparent,
+      rgb(var(--background-end-rgb))) rgb(var(--background-start-rgb));
+}
+
+
+.svg-wrapper svg {
+  width: 100%;
+}
+
+.drag_w {
+  z-index: 99;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  margin: auto;
+  left: 0;
+  right: 0;
+}
+
+
+.button_l_w {
+  color: #fff;
+  z-index: 99999;
+  position: absolute;
+  top: 2px;
+  right: 15px;
+}
+
+.layers_w {
+  position: absolute;
+  top: 19px;
+  background: rgb(30 41 59);
+  padding: 4px 10px;
+  border: 1px solid #ffffff36;
+  border-radius: 4px;
+  display: flex;
+  flex-direction: column;
+  right: 32px;
+  z-index: 999999;
+  
+}
+
+ 
+div#ruler_scale_drag::before {
+  content: "";
+  position: absolute;
+  z-index: 9999;
+  width: 40px;
+  height: 46px;
+  background-image: url('/time-line.png');
+  background-size: cover;
+  top: -5px;
+  left: -20px;
+}
+
+.layer_active {
+  background: rgb(37 99 235);
+}
+
+.layers_w button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+
+.overflow-scroll::-webkit-scrollbar {
+ 
+  background-color: rgb(30, 41, 59);
+}
+
+.overflow-scroll::-webkit-scrollbar-thumb {
+ 
+  background-color: rgb(22, 30, 43);
+
+}
+
+.overflow-scroll::-webkit-scrollbar-corner {
+  background-color: rgb(30, 41, 59);
+}
+
+
+.text-editor-panel {
+  background: rgb(30 41 59);
+  padding: 20px;
+  border: 1px solid #ffffff36;
+  margin: 18px;
+  border-radius: 4px;
+  position: relative;
+}
+.text-holder {
+  display: flex;
+  flex-direction: column;
+  border-bottom: 1px solid #ffffff36;
+  padding: 8px 0px;
+  gap: 8px;
+}
+
+ 
+
+.text-holder label {
+  color: #fff;
+}
+.text-holder:nth-child(2) {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: center;
+}
+.text-holder input {
+  width: 100%;
+}
+
+.text-editor-panel .close-button {
+  position: absolute;
+  right: 13px;
+  top: 14px;
+  color: #fff;
+  font-weight: bold;
+} 
+
+.text-right {
+  text-align: right;
+  display: flex;
+  justify-content: space-between;
+  margin-top: 26px;
+  gap: 8px;
+}
+.text-right button {
+  background: rgb(14 14 14);
+  width: 100%;
+  color: #fff;
+  border-radius: 4px;
+}
+.text_left {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.elements_holder {
+  border-bottom: 1px solid #ffffff36;
+  margin: 0px;
+  padding: 6px;
+  cursor: pointer;
+}
+.video_flex_wrapper {
+  margin: 20px 0px 0px 0px;
+  display: flex;
+} 
+.upload_button {
+  margin-top: 20px;
+}
+
+.export_button {
+  margin: 14px 14px 0px 14px;
+  background: rgb(14 14 14);
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 4px;
+  padding: 10px 8px;
+}
