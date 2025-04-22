@@ -7,7 +7,7 @@ import { observer } from "mobx-react-lite";
 import { CreateStorylinePopup } from "../entity/StoryLineresource";
 import StoryLineresults from "../storyline/StoryLineresults";
 
-const API_URL = process.env.NEXT_PYBLIC_API_URL;
+const API_URL = "https://python-nlp-2025.onrender.com";
 
 const StoryLinePanel = observer(() => {
   const store = useContext(StoreContext);
@@ -56,7 +56,7 @@ const StoryLinePanel = observer(() => {
       </div>
       <button
         onClick={() => store.createStoryline()}
-        className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold text-center mx-2 py-2 px-4 rounded cursor-pointer"
+        className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold text-center mx-2 py-2 px-4 rounded cursor-pointer "
       >
         Create Storyline
       </button>

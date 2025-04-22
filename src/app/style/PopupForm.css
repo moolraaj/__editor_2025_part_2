@@ -158,8 +158,8 @@
 .popup-container {
   background: #121212;
   border-radius: 10px;
-  padding: 51px 24px 24px 24px;
-  width: 900px;
+  padding: 35px 24px 24px 24px;
+  width: 1024px;
   max-height: 90vh;
   overflow-y: auto;
   position: relative;
