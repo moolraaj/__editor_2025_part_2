@@ -9,6 +9,7 @@ import { ImageResourcesPanel } from "./panels/ImageResourcesPanel";
 import { TextResourcesPanel } from "./panels/TextResourcesPanel";
 import { VideoResourcesPanel } from "./panels/VideoResourcesPanel";
  import { SvgResourcesPanel } from "./panels/SvgResourcesPanel";
+import StoryLinePanle from "./panels/StoryLinePanle";
 
 export const Resources = observer(() => {
   const store = React.useContext(StoreContext);
@@ -21,6 +22,7 @@ export const Resources = observer(() => {
       {selectedMenuOption === "Text" ? <TextResourcesPanel /> : null}
        {selectedMenuOption === "Export" ? <ExportVideoPanel /> : null}
       {selectedMenuOption === "Fill" ? <FillPanel /> : null}
+      {selectedMenuOption === "STORYLINE" ? <StoryLinePanle /> : null}
       {selectedMenuOption === "SVG" ? <SvgResourcesPanel /> : null}
     </div>
   );

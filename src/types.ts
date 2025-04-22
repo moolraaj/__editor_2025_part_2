@@ -20,7 +20,7 @@ export type ImageEditorElement = EditorElementBase<
 
 export type AudioEditorElement = EditorElementBase<
   "audio",
-  { src: string; elementId: string,isAudioPlaying?: boolean; }
+  { src: string; elementId: string, isAudioPlaying?: boolean; }
 >;
 export type TextEditorElement = EditorElementBase<
   "text",
@@ -36,7 +36,7 @@ export type TextEditorElement = EditorElementBase<
 >;
 export type SvgEditorElement = EditorElementBase<
   "svg",
-  { src: string; elementId: string; animationType?: string } 
+  { src: string; elementId: string; animationType?: string }
 >;
 
 
@@ -115,4 +115,37 @@ export type MenuOption =
   | "Image"
   | "Export"
   | "Fill"
+  | "STORYLINE"
   | "SVG";
+
+
+export interface GifResult {
+  id: string;
+  tags: string[];
+  animation_type_id: string;
+  background_id: string;
+  gif_url: string;
+
+  similarity?: number;
+
+}
+
+export interface AnimationTypes {
+  id: string;
+  name: string;
+  gif_url?: string;
+}
+
+interface Background {
+  id: string;
+  name: string;
+  background_url: string;
+}
+
+export interface StoryLinePayload {
+  is_default: boolean;            
+  keywords: string[];
+  animations: AnimationTypes[];
+  backgrounds: Background[];
+  gifs: GifResult[];
+}

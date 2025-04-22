@@ -54,6 +54,10 @@ export class Store {
   audioSourceNodes: Map<string, MediaElementAudioSourceNode> = new Map()
   copiedElement: EditorElement | null = null
   currentAnimations: anime.AnimeInstance[] = []
+  showStorylinePopup = false;
+ 
+
+
 
   constructor() {
     this.canvas = null
@@ -73,6 +77,14 @@ export class Store {
     this.selectedMenuOption = 'Video'
     this.selectedVideoFormat = 'mp4'
     makeAutoObservable(this)
+  }
+
+  setShowStorylinePopup(value: boolean) {
+    this.showStorylinePopup = value;
+  }
+
+  createStoryline() {
+    this.setShowStorylinePopup(true);
   }
 
   moveElement(draggedIndex: number, hoveredIndex: number) {

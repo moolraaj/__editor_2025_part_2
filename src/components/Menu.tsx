@@ -6,7 +6,7 @@ import {
   MdDownload,
   MdVideoLibrary,
   MdImage,
-  
+  MdAddCircleOutline,
   MdTitle,
   MdAudiotrack,
   MdOutlineFormatColorFill,
@@ -92,6 +92,14 @@ const MENU_OPTIONS = [
     icon: MdUploadFile,
     action: (store: Store) => {
       store.setSelectedMenuOption("SVG"); 
+    },
+  },
+  {
+    name: "Storyline",
+    icon: MdAddCircleOutline,
+    action: (store: Store) => {
+      store.setSelectedMenuOption("STORYLINE");
+     
     },
   },
   {
