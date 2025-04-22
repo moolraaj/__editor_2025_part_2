@@ -1,4 +1,3 @@
- 
 'use client';
 
 import React, { useContext, useState } from "react";
@@ -6,39 +5,55 @@ import { StoreContext } from "@/store";
 import { observer } from "mobx-react-lite";
 import { CreateStorylinePopup } from "../entity/StoryLineresource";
 import StoryLineresults from "../storyline/StoryLineresults";
+import { API_URL } from "@/utils/constants";
 
-const API_URL = process.env.NEXT_PYBLIC_API_URL;
+ 
 
 const StoryLinePanel = observer(() => {
+
+    console.log(API_URL)
+
+ 
   const store = useContext(StoreContext);
   const [showResultPopup, setShowResultPopup] = useState(false);
   const [payloads, setPayloads] = useState<any[]>([]);
 
- 
   const speakText = async (text: string) => {
-    const res = await fetch(`${API_URL}/speak`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-    if (!res.ok) return;
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    new Audio(url).play();
+    try {
+      const res = await fetch(`${API_URL}/speak`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        console.error("TTS request failed:", res.statusText);
+        return;
+      }
+      const blob = await res.blob();
+     
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.onended = () => URL.revokeObjectURL(url);
+      audio.play();
+    } catch (err) {
+      console.error("Error playing TTS:", err);
+    }
   };
 
   const handleSubmit = async (sentences: string[]) => {
-    
     const fullText = sentences.join(". ");
     await speakText(fullText);
 
- 
     try {
       const res = await fetch(`${API_URL}/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ texts: sentences }),
       });
+      if (!res.ok) {
+        console.error("Search request failed:", res.statusText);
+        return;
+      }
       const data = await res.json();
       setPayloads(data);
       setShowResultPopup(true);
