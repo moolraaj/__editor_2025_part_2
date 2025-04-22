@@ -10,28 +10,28 @@ interface MultiStepFormProps {
 
 // MultiStepForm component
     const MultiStepForm: React.FC<MultiStepFormProps> = ({ onClose}) => {
-  const [step, setStep] = useState(1); // Track the current step
+  const [step, setStep] = useState(1);  
 
-  // Handle the "Next" button to move to the next step
+  
   const handleNext = (index: number) => {
-    setStep(index + 1); // Move to the next step
+    setStep(index + 1);  
   };
 
-  // Handle the "Back" button to move to the previous step
+  
   const handleBack = () => {
-    setStep(step - 1); // Go back to the previous form
+    setStep(step - 1);  
   };
 
-  // Reset or close form
+ 
   const handleClose = () => {
-    setStep(1); // Reset to the first form
+    setStep(1);  
   };
 
   return (
     <div>
       {step === 1 && <PopupForm onClose={handleClose} onNext={handleNext} />}
       {step === 2 && <VideoForm onBack={handleBack} onNext={handleNext} />}
-      {/* Add other forms as needed */}
+       
     </div>
   );
 };
