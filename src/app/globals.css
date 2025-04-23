@@ -98,6 +98,13 @@ body {
   top: -4px;
 }
 
+.random_suggession {
+  padding: 15px 0px 0px 0px;
+  font-size: 16px;
+  font-weight: 600;
+  text-transform:capitalize
+}
+
 
 
 .popup_close {
