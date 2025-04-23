@@ -6,18 +6,13 @@ import { FaMinus, FaPlus, FaTimes } from 'react-icons/fa';
 import { API_URL } from '@/utils/constants';
 import '@/app/style/storyline.css';
 
- 
 type PayloadCallback = (sentences: string[]) => void;
 
- 
 interface CreateStorylinePopupProps {
   onClose: () => void;
   onSubmit: PayloadCallback;
 }
 
-
-
- 
 interface FormState {
   title: string;
   challenge: string;
@@ -27,7 +22,18 @@ interface FormState {
   cta: string;
 }
 
-export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({ onClose, onSubmit }) => {
+interface Suggestion {
+  suggestion: string;
+}
+
+interface ApiResponse {
+  suggestions?: Record<string, Suggestion>;
+}
+
+export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({
+  onClose,
+  onSubmit
+}) => {
   const [step, setStep] = useState<number>(0);
   const [open, setOpen] = useState<Record<keyof FormState, boolean>>({
     title: false,
@@ -47,13 +53,10 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({ onCl
     cta: ''
   });
 
- 
   const [suggestions, setSuggestions] = useState<Partial<Record<keyof FormState, string>>>({});
-
   const recognitionRefs = useRef<Partial<Record<keyof FormState, any>>>({});
   const [listeningField, setListeningField] = useState<keyof FormState | null>(null);
 
- 
   const toggle = (field: keyof FormState) => {
     setOpen(prev => {
       const state: Record<keyof FormState, boolean> = {
@@ -69,48 +72,50 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({ onCl
     });
   };
 
- 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+  ) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name as keyof FormState]: value }));
   };
 
- 
   const startRecognition = (field: keyof FormState) => {
-    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const SpeechRec = (window as any).SpeechRecognition ||
+                      (window as any).webkitSpeechRecognition;
     if (!SpeechRec) {
       alert('Speech Recognition not supported');
       return;
     }
     const recog = new SpeechRec();
     recognitionRefs.current[field] = recog;
-    recog.lang = 'en-US'; recog.interimResults = false; recog.maxAlternatives = 1;
+    recog.lang = 'en-US';
+    recog.interimResults = false;
+    recog.maxAlternatives = 1;
     recog.onstart = () => setListeningField(field);
     recog.onresult = (ev: any) => {
-      const t = ev.results[0][0].transcript;
+      const t: string = ev.results[0][0].transcript;
       setForm(prev => ({ ...prev, [field]: t }));
     };
     recog.onerror = () => setListeningField(null);
     recog.onend = () => setListeningField(null);
     recog.start();
+    // auto‐stop after 5s
     setTimeout(() => recog.stop(), 5000);
   };
 
- 
   const canProceed = Object.values(form).some(v => v.trim() !== '');
 
- 
   const handleNext = async () => {
     if (!canProceed) {
       alert('Please fill at least one field to proceed.');
       return;
     }
- 
+
+    // Which fields have text:
     const fieldKeys = (Object.keys(form) as (keyof FormState)[])
       .filter(k => form[k].trim() !== '');
     const texts = fieldKeys.map(k => form[k]);
 
- 
     const res = await fetch(`${API_URL}/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -120,9 +125,11 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({ onCl
       console.error('Validation request failed:', res.statusText);
       return;
     }
-    const data = await res.json();
+
+    // Cast the JSON to our expected shape:
+    const data = (await res.json()) as ApiResponse;
+
     if (data.suggestions) {
- 
       const newSug: Partial<Record<keyof FormState, string>> = {};
       Object.entries(data.suggestions).forEach(([idx, obj]) => {
         const i = Number(idx);
@@ -130,17 +137,15 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({ onCl
         newSug[field] = obj.suggestion;
       });
       setSuggestions(newSug);
-      return;  
+      return;
     }
 
-   
     setSuggestions({});
     setStep(1);
   };
 
   const handlePrev = () => setStep(0);
 
- 
   const handleSubmit = () => {
     const sentences = (Object.keys(form) as (keyof FormState)[])
       .map(k => form[k])
@@ -148,7 +153,6 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({ onCl
     onSubmit(sentences);
   };
 
- 
   const renderField = (
     field: keyof FormState,
     placeholder: string,
@@ -160,7 +164,7 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({ onCl
         <textarea
           name={field}
           rows={rows}
-          placeholder={listeningField===field?'Listening…':placeholder}
+          placeholder={listeningField === field ? 'Listening…' : placeholder}
           value={form[field]}
           onChange={handleChange}
           className="storyline-form-input"
@@ -170,12 +174,11 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({ onCl
           <input
             name={field}
             type="text"
-            placeholder={listeningField===field?'Listening…':placeholder}
+            placeholder={listeningField === field ? 'Listening…' : placeholder}
             value={form[field]}
             onChange={handleChange}
             className="storyline-form-input"
           />
-    
           {suggestions[field] && (
             <div className="mt-1 text-sm text-yellow-700 random_suggession">
               {suggestions[field]}
@@ -188,7 +191,7 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({ onCl
         onClick={() => startRecognition(field)}
         className="absolute right-2 top-2"
       >
-        <Mic size={20} className={listeningField===field?'animate-pulse':''} />
+        <Mic size={20} className={listeningField === field ? 'animate-pulse' : ''} />
       </button>
     </div>
   );
@@ -203,24 +206,31 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({ onCl
           </button>
         </div>
 
-        {step===0 && (
+        {step === 0 && (
           <>
             <div className="popup-fields">
               {(Object.keys(form) as (keyof FormState)[]).map(field => (
                 <div key={field} className="popup-field">
                   <button
-                    onClick={()=>toggle(field)}
+                    onClick={() => toggle(field)}
                     className="field-toggle-button flex items-center gap-2 relative"
                   >
-                    <div className={`status-dot ${form[field].trim() ? 'filled':''}`} />
+                    <div className={`status-dot ${form[field].trim() ? 'filled' : ''}`} />
                     <span className="field-title">
-                      {field==='introSupp1'? 'Intro (Supplementary 1)': field.charAt(0).toUpperCase()+field.slice(1)}
+                      {field === 'introSupp1'
+                        ? 'Intro (Supplementary 1)'
+                        : field.charAt(0).toUpperCase() + field.slice(1)}
                     </span>
                     <span className="ml-auto field-toggle-icon">
-                      {open[field]?<FaMinus/>:<FaPlus/>}
+                      {open[field] ? <FaMinus /> : <FaPlus />}
                     </span>
                   </button>
-                  {open[field] && renderField(field, getPlaceholder(field), field==='introMain', 3)}
+                  {open[field] && renderField(
+                    field,
+                    getPlaceholder(field),
+                    field === 'introMain',
+                    3
+                  )}
                 </div>
               ))}
             </div>
@@ -236,7 +246,7 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({ onCl
           </>
         )}
 
-        {step===1 && (
+        {step === 1 && (
           <div className="popup-confirmation">
             <p className="confirmation-text">Are you ready to generate scene?</p>
             <div className="confirmation-buttons">
@@ -254,15 +264,21 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({ onCl
   );
 };
 
- 
 const getPlaceholder = (field: keyof FormState): string => {
-  switch(field) {
-    case 'title': return 'Describe your product or service in one sentence';
-    case 'challenge': return 'Describe the main pain points your prospect is experiencing';
-    case 'turningPoint': return 'Summarize the pain points and your solution';
-    case 'introMain': return 'Describe the main service or feature you offer...';
-    case 'introSupp1': return 'Connect you with your customers the way you never did before.';
-    case 'cta': return 'Make a call-to-action telling potential clients exactly what to do next';
-    default: return '';
+  switch (field) {
+    case 'title':
+      return 'Describe your product or service in one sentence';
+    case 'challenge':
+      return 'Describe the main pain points your prospect is experiencing';
+    case 'turningPoint':
+      return 'Summarize the pain points and your solution';
+    case 'introMain':
+      return 'Describe the main service or feature you offer...';
+    case 'introSupp1':
+      return 'Connect you with your customers the way you never did before.';
+    case 'cta':
+      return 'Make a call-to-action telling potential clients exactly what to do next';
+    default:
+      return '';
   }
 };
