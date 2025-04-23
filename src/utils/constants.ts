@@ -29,8 +29,8 @@ export const WALKING:string='walking'
 export const HANDSTAND:string='handstand'
 export const VIDEO_EXPORT_LENGTH=600
 
-export const API_URL="https://python-nlp-2025.onrender.com"
-// export const  API_URL="http://localhost:8000"
+// export const API_URL="https://python-nlp-2025.onrender.com"
+export const  API_URL="http://localhost:8000"
 
 
 export function showLoading() {
