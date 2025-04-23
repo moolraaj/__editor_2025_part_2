@@ -1,20 +1,50 @@
-import { StoryLinePayload } from '@/types'
-import React from 'react'
-import { FaTimes } from 'react-icons/fa'
+// src/components/StoryLineresults.tsx
+'use client';
+
+import React from 'react';
+import { FaTimes } from 'react-icons/fa';
+import { API_URL } from '@/utils/constants';
+import { StoryLinePayload } from '@/types';
 
 interface StoryLineResultsProps {
-  
-  showResultPopup: boolean
-  payloads: StoryLinePayload[]
-  setShowResultPopup: (open: boolean) => void
+  showResultPopup: boolean;
+  payloads: StoryLinePayload[];
+  sentences: string[];
+  setShowResultPopup: (open: boolean) => void;
 }
 
 const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   showResultPopup,
   payloads,
-  setShowResultPopup
+  sentences,
+  setShowResultPopup,
 }) => {
-  if (!showResultPopup) return null
+  if (!showResultPopup) return null;
+
+  const download = async (path: string, filename: string) => {
+    try {
+      const res = await fetch(`${API_URL}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ texts: sentences }),
+      });
+      if (!res.ok) {
+        console.error(`Download failed: ${res.statusText}`);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Error downloading file:', err);
+    }
+  };
 
   return (
     <div className="popup_overlay">
@@ -23,67 +53,59 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
           className="popup_close"
           onClick={() => setShowResultPopup(false)}
         >
-          <FaTimes/>
+          <FaTimes />
         </button>
+
         <div className="st_line_wrap_outer">
-          {payloads.length > 0 && payloads.map((payload, index) => (
-            <div key={index} className="st_wrapper_inner">
+          {payloads.map((payload, idx) => (
+            <div key={idx} className="st_wrapper_inner">
               <h3>
-                {payload.is_default ? 'Default Scene' : 'Scene'} {index + 1}
+                {payload.is_default ? 'Default Scene' : 'Scene'} {idx + 1}
               </h3>
-
-              {/* {payload.animations.length > 0 && (
-                <div className="ani_type">
-                  {payload.animations.map(anim => (
-                    <div key={anim.id}>{anim.name}</div>
-                  ))}
-                </div>
-              )} */}
-
-              {/* {payload.backgrounds.length > 0 && (
-                <div className="bg_type">
-                  {payload.backgrounds.map(bg => (
-                    <div key={bg.id} className="bg_type_bac">
-                      <img src={bg.background_url} alt={bg.name} />
-                    </div>
-                  ))}
-                </div>
-              )} */}
-
               {payload.gifs.length > 0 && (
                 <div className="char_type">
-                  {payload.gifs.map(gif => (
+                  {payload.gifs.map((gif) => (
                     <div key={gif.id} className="svg_type_img">
-                      <img src={gif.gif_url} alt={gif.tags[0]} />
+                      <img src={gif.gif_url} alt={gif.tags[0] || 'gif'} />
                     </div>
                   ))}
                 </div>
               )}
             </div>
           ))}
-          
         </div>
-        <div className='st_line_buttons_outer'>
-            <div className='st_line_buttons_inner'>
-              <button
-                className="buttons">
-                Download as Pdf
-              </button>
-              <button
-                className="buttons">
-                Download as image
-              </button>
-              <button
-                className="buttons">
-                Add To Canvas
-              </button>
-            </div>
-          </div>
-      </div>
-      
-    </div>
-    
-  )
-}
 
-export default StoryLineResults
+        <div className="st_line_buttons_outer">
+          <div className="st_line_buttons_inner">
+            <button
+              className="buttons"
+              onClick={() =>
+                download('/download-scenes-pdf', 'scenes.pdf')
+              }
+            >
+              Download as PDF
+            </button>
+            <button
+              className="buttons"
+              onClick={() =>
+                download('/download-all-images', 'all_images.zip')
+              }
+            >
+              Download All Images
+            </button>
+            <button
+              className="buttons"
+              onClick={() => {
+               
+              }}
+            >
+              Add To Canvas
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default StoryLineResults;
