@@ -1,5 +1,6 @@
 import { StoryLinePayload } from '@/types'
 import React from 'react'
+import { FaTimes } from 'react-icons/fa'
 
 interface StoryLineResultsProps {
   
@@ -22,7 +23,7 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
           className="popup_close"
           onClick={() => setShowResultPopup(false)}
         >
-          ✖
+          <FaTimes/>
         </button>
         <div className="st_line_wrap_outer">
           {payloads.length > 0 && payloads.map((payload, index) => (
@@ -31,15 +32,15 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
                 {payload.is_default ? 'Default Scene' : 'Scene'} {index + 1}
               </h3>
 
-              {payload.animations.length > 0 && (
+              {/* {payload.animations.length > 0 && (
                 <div className="ani_type">
                   {payload.animations.map(anim => (
                     <div key={anim.id}>{anim.name}</div>
                   ))}
                 </div>
-              )}
+              )} */}
 
-              {payload.backgrounds.length > 0 && (
+              {/* {payload.backgrounds.length > 0 && (
                 <div className="bg_type">
                   {payload.backgrounds.map(bg => (
                     <div key={bg.id} className="bg_type_bac">
@@ -47,7 +48,7 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
                     </div>
                   ))}
                 </div>
-              )}
+              )} */}
 
               {payload.gifs.length > 0 && (
                 <div className="char_type">
@@ -60,9 +61,28 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
               )}
             </div>
           ))}
+          
         </div>
+        <div className='st_line_buttons_outer'>
+            <div className='st_line_buttons_inner'>
+              <button
+                className="buttons">
+                Download as Pdf
+              </button>
+              <button
+                className="buttons">
+                Download as image
+              </button>
+              <button
+                className="buttons">
+                Add To Canvas
+              </button>
+            </div>
+          </div>
       </div>
+      
     </div>
+    
   )
 }
 

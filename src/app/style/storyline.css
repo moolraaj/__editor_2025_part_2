@@ -52,6 +52,7 @@ span.field-title {
     width: 100%;
     background-color: #404040;
     border-radius: 5px;
+    outline: none;
 }
 
 .storyline-form-input:active {

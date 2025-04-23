@@ -5,12 +5,13 @@ import { StoreContext } from "@/store";
 import { observer } from "mobx-react-lite";
 import { CreateStorylinePopup } from "../entity/StoryLineresource";
 import StoryLineresults from "../storyline/StoryLineresults";
+import { API_URL } from "@/utils/constants";
 
-const API_URL = process.env.NEXT_PYBLIC_API_URL;
+
 
 const StoryLinePanel = observer(() => {
 
-    console.log(API_URL)
+    
 
  
   const store = useContext(StoreContext);
