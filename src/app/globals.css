@@ -83,7 +83,7 @@ body {
 
 .popup_content {
   background: #808080;
-  padding: 2rem;
+  padding: 35px;
   max-height: 90vh;
   overflow-y: auto;
   border-radius: 10px;
@@ -94,8 +94,8 @@ body {
 .popup_content svg {
   color: white;
   position: absolute;
-  right: -12px;
-  top: -7px;
+  right: -8px;
+  top: -4px;
 }
 
 .random_suggession {
