@@ -73,6 +73,50 @@ export class Store {
     makeAutoObservable(this)
   }
 
+  
+
+  // In your store.ts file, add this method to your Store class
+updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
+  // Update the scene element's timeframe
+  const sceneElement = this.editorElements.find(
+      e => e.type === "scene" && 
+      (e as SceneEditorElement).properties.sceneIndex === sceneIndex
+  ) as SceneEditorElement | undefined;
+  
+  if (sceneElement) {
+      this.updateEditorElementTimeFrame(sceneElement, {
+          start: newStart,
+          end: newEnd
+      });
+  }
+
+  // Update all elements that belong to this scene
+  this.editorElements.forEach(element => {
+      if (element.type !== "scene" && element.id === sceneElement?.id) {
+          const duration = element.timeFrame.end - element.timeFrame.start;
+          this.updateEditorElementTimeFrame(element, {
+              start: newStart,
+              end: newStart + duration
+          });
+      }
+  });
+
+  // Update maxTime if needed
+  const maxSceneEnd = Math.max(...this.scenes.map((_, idx) => {
+      const scene = this.editorElements.find(
+          e => e.type === "scene" && 
+          (e as SceneEditorElement).properties.sceneIndex === idx
+      ) as SceneEditorElement | undefined;
+      return scene?.timeFrame.end || 0;
+  }));
+  
+  if (maxSceneEnd > this.maxTime) {
+      this.setMaxTime(maxSceneEnd);
+  }
+}
+
+  
+
 
   getMaxTime() {
     if (this.scenes.length > 0) {
@@ -117,7 +161,7 @@ export class Store {
     };
     this.editorElements.push(sceneElem);
 
-    // Update timeline duration
+   
     this.refreshAnimations();
   }
 

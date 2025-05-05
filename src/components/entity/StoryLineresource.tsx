@@ -3,7 +3,6 @@
 import React, { useState, useRef } from 'react';
 import { Mic } from 'lucide-react';
 import { FaMinus, FaPlus, FaTimes } from 'react-icons/fa';
-import { API_URL } from '@/utils/constants';
 import '@/app/style/storyline.css';
 
 type PayloadCallback = (sentences: string[]) => void;
@@ -20,14 +19,6 @@ interface FormState {
   introMain: string;
   introSupp1: string;
   cta: string;
-}
-
-interface Suggestion {
-  suggestion: string;
-}
-
-interface ApiResponse {
-  suggestions?: Record<string, Suggestion>;
 }
 
 export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({
@@ -53,7 +44,6 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({
     cta: ''
   });
 
-  const [suggestions, setSuggestions] = useState<Partial<Record<keyof FormState, string>>>({});
   const recognitionRefs = useRef<Partial<Record<keyof FormState, any>>>({});
   const [listeningField, setListeningField] = useState<keyof FormState | null>(null);
 
@@ -81,7 +71,7 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({
 
   const startRecognition = (field: keyof FormState) => {
     const SpeechRec = (window as any).SpeechRecognition ||
-                      (window as any).webkitSpeechRecognition;
+      (window as any).webkitSpeechRecognition;
     if (!SpeechRec) {
       alert('Speech Recognition not supported');
       return;
@@ -99,48 +89,17 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({
     recog.onerror = () => setListeningField(null);
     recog.onend = () => setListeningField(null);
     recog.start();
-     
     setTimeout(() => recog.stop(), 5000);
   };
 
+  // Only check if at least one field has content
   const canProceed = Object.values(form).some(v => v.trim() !== '');
 
-  const handleNext = async () => {
+  const handleNext = () => {
     if (!canProceed) {
       alert('Please fill at least one field to proceed.');
       return;
     }
-
-   
-    const fieldKeys = (Object.keys(form) as (keyof FormState)[])
-      .filter(k => form[k].trim() !== '');
-    const texts = fieldKeys.map(k => form[k]);
-
-    const res = await fetch(`${API_URL}/search`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json', },
-      body: JSON.stringify({ texts }),
-    });
-    if (!res.ok) {
-      console.error('Validation request failed:', res.statusText);
-      return;
-    }
-
-   
-    const data = (await res.json()) as ApiResponse;
-
-    if (data.suggestions) {
-      const newSug: Partial<Record<keyof FormState, string>> = {};
-      Object.entries(data.suggestions).forEach(([idx, obj]) => {
-        const i = Number(idx);
-        const field = fieldKeys[i];
-        newSug[field] = obj.suggestion;
-      });
-      setSuggestions(newSug);
-      return;
-    }
-
-    setSuggestions({});
     setStep(1);
   };
 
@@ -170,21 +129,14 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({
           className="storyline-form-input"
         />
       ) : (
-        <>
-          <input
-            name={field}
-            type="text"
-            placeholder={listeningField === field ? 'Listening…' : placeholder}
-            value={form[field]}
-            onChange={handleChange}
-            className="storyline-form-input"
-          />
-          {suggestions[field] && (
-            <div className="mt-1 text-sm text-yellow-700 random_suggession">
-              {suggestions[field]}
-            </div>
-          )}
-        </>
+        <input
+          name={field}
+          type="text"
+          placeholder={listeningField === field ? 'Listening…' : placeholder}
+          value={form[field]}
+          onChange={handleChange}
+          className="storyline-form-input"
+        />
       )}
       <button
         type="button"

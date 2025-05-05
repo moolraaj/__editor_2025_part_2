@@ -46,7 +46,7 @@ const StoryLinePanel: React.FC = observer(() => {
     setLastSentences(sentences);
 
    
-    await speakText(sentences.join('. '));
+    // await speakText(sentences.join('. '));
 
  
     const res = await fetch(`${API_URL}/search`, {

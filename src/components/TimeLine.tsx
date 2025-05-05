@@ -1,5 +1,4 @@
 "use client";
-
 import React, { useContext, useState, useEffect } from "react";
 import { observer } from "mobx-react-lite";
 import { StoreContext } from "@/store";
@@ -163,7 +162,7 @@ export const TimeLine: React.FC = observer(() => {
           </div>
         )}
         <div
-          className="w-[2px] bg-[#f87171] absolute top-0 bottom-0 z-20 left-10 mover"
+          className="w-[2px] bg-[#f87171] absolute top-0 bottom-0 z-20 left-10"
           style={{ left: `${nowPct}%` }}
         />
       </div>
