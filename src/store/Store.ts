@@ -1056,16 +1056,12 @@ updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
 
  
   updateTimeTo(newTime: number) {
-    
     this.setCurrentTimeInMs(newTime);
     this.animationTimeLine.seek(newTime);
 
-   
     if (this.canvas) {
       this.canvas.backgroundColor = this.backgroundColor;
     }
-
-   
     let cursor = 0;
     const sceneSegments = this.editorElements
       .filter((e) => e.type === "scene")
