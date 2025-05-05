@@ -51,7 +51,7 @@ const StoryLinePanel: React.FC = observer(() => {
  
     const res = await fetch(`${API_URL}/search`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ texts: sentences }),
     });
     if (!res.ok) {

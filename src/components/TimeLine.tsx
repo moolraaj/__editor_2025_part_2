@@ -7,13 +7,10 @@ import { SeekPlayer } from "./timeline-related/SeekPlayer";
 import { TimeFrameView } from "./timeline-related/TimeFrameView";
 import type { SceneEditorElement } from "@/types";
 import type { fabric } from "fabric";
-
 export const TimeLine: React.FC = observer(() => {
   const store = useContext(StoreContext);
   const nowPct = (store.currentTimeInMs / store.maxTime) * 100;
   const [expandedScene, setExpandedScene] = useState<number | null>(null);
-
-
   useEffect(() => {
     const sceneCount = store.scenes.length;
     if (sceneCount === 0) return;
@@ -41,16 +38,9 @@ export const TimeLine: React.FC = observer(() => {
     const layers = Array.isArray(sceneElem.fabricObject)
       ? (sceneElem.fabricObject as fabric.Object[])
       : [];
-    console.groupCollapsed(`Scene ${idx} Details`);
-    console.log("Scene element:", sceneElem);
-    console.log("Fabric layers:", layers);
-    if (sceneElem.properties.elements?.length) {
-      console.log("Child elements:", sceneElem.properties.elements);
-    }
     console.groupEnd();
     const isOpen = expandedScene === idx;
     const isActive = store.activeSceneIndex === idx;
-
     return (
       <div
         key={sceneElem.id}
@@ -75,9 +65,7 @@ export const TimeLine: React.FC = observer(() => {
         <TimeFrameView element={sceneElem} />
         {isOpen && (
           <div className="space-y-4">
-
             <div>
-              <strong className="text-gray-200">Scene Layers</strong>
               <div className="flex flex-col gap-1 mt-2">
                 {layers.map((layer, i) => (
                   <div
@@ -104,11 +92,8 @@ export const TimeLine: React.FC = observer(() => {
             </div>
           </div>
         )}
-
-
         {sceneElem.properties.elements?.length ? (
           <div>
-            <strong className="text-gray-200">Global Elements</strong>
             <div className="flex flex-col gap-1 mt-2">
               {sceneElem.properties.elements.map((el, i) => (
                 <div
@@ -139,17 +124,13 @@ export const TimeLine: React.FC = observer(() => {
       </div>
     );
   };
-
   return (
     <div className="flex flex-col space-y-6">
-
       <SeekPlayer />
-
       <div
-        className="flex-1 relative p-4 space-y-6"
+        className="flex-1 relative  space-y-6"
         onDragOver={(e) => e.preventDefault()}
       >
-
         {store.scenes.map((scene, idx) => {
           const sceneElem = store.editorElements.find(
             (e) =>
@@ -164,11 +145,9 @@ export const TimeLine: React.FC = observer(() => {
 
           return renderSceneLayers(sceneElem, idx);
         })}
-
-
         {store.editorElements.filter((e) => e.type !== "scene").length > 0 && (
-          <div className="space-y-4 mt-6">
-            <h3 className="text-white font-semibold">Global Elements</h3>
+          <div className="space-y-4  ">
+
             {store.editorElements
               .filter((e) => e.type !== "scene")
               .map((el) => (
@@ -183,10 +162,8 @@ export const TimeLine: React.FC = observer(() => {
               ))}
           </div>
         )}
-
-
         <div
-          className="w-[2px] bg-red-500 top-0 bottom-0 z-20 pointer-events-none"
+          className="w-[2px] bg-[#f87171] absolute top-0 bottom-0 z-20 left-10 mover"
           style={{ left: `${nowPct}%` }}
         />
       </div>
