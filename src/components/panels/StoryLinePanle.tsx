@@ -1,4 +1,4 @@
- 
+
 'use client';
 
 import React, { useContext, useState } from 'react';
@@ -10,7 +10,7 @@ import { API_URL } from '@/utils/constants';
 
 type SearchResponse = {
   results: any[];
- 
+
   suggestions?: Record<number, { suggestion: string; assets: any }>;
 };
 
@@ -45,13 +45,13 @@ const StoryLinePanel: React.FC = observer(() => {
     if (!sentences.length) return;
     setLastSentences(sentences);
 
-   
-    // await speakText(sentences.join('. '));
 
- 
+    await speakText(sentences.join('. '));
+
+
     const res = await fetch(`${API_URL}/search`, {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ texts: sentences }),
     });
     if (!res.ok) {
@@ -61,7 +61,7 @@ const StoryLinePanel: React.FC = observer(() => {
 
     const data: SearchResponse = await res.json();
 
- 
+
     if (data.suggestions) {
       const lines = Object.entries(data.suggestions).map(
         ([idx, { suggestion }]) =>
@@ -75,7 +75,7 @@ const StoryLinePanel: React.FC = observer(() => {
       return;
     }
 
-  
+
     setPayloads(data.results);
     setShowResultPopup(true);
     store.setShowStorylinePopup(false);
@@ -88,7 +88,7 @@ const StoryLinePanel: React.FC = observer(() => {
       </div>
       <button
         onClick={() => store.createStoryline()}
-        className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold mx-2 py-2 px-4 rounded"
+        className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold text-center mx-2 py-2 px-4 rounded cursor-pointer"
       >
         Create Storyline
       </button>

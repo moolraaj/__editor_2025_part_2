@@ -1054,18 +1054,18 @@ updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
 
 
 
-  /** inside class Store */
+ 
   updateTimeTo(newTime: number) {
-    // 1) update keyframe & anime timeline
+    
     this.setCurrentTimeInMs(newTime);
     this.animationTimeLine.seek(newTime);
 
-    // 2) sync canvas background
+   
     if (this.canvas) {
       this.canvas.backgroundColor = this.backgroundColor;
     }
 
-    // 3) build dynamic scene segments (no gaps)
+   
     let cursor = 0;
     const sceneSegments = this.editorElements
       .filter((e) => e.type === "scene")
@@ -1082,20 +1082,17 @@ updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
         return seg;
       });
 
-    // 4) show/hide scenes & their children
-    sceneSegments.forEach(({ sc, start, end }) => {
+     sceneSegments.forEach(({ sc, start, end }) => {
       const idx = sc.properties.sceneIndex;
       const inPlayhead = newTime >= start && newTime <= end;
       const isActive = idx === this.activeSceneIndex;
       const sceneVisible = inPlayhead || isActive;
 
-      // show/hide scene backgrounds + GIFs
-      if (Array.isArray(sc.fabricObject)) {
+       if (Array.isArray(sc.fabricObject)) {
         sc.fabricObject.forEach((o) => (o.visible = sceneVisible));
       }
 
-      // show/hide each child only in its own timeFrame
-      sc.properties.elements?.forEach((child) => {
+       sc.properties.elements?.forEach((child) => {
         if (!child.fabricObject) return;
         const relStart = child.timeFrame.start - sc.timeFrame.start;
         const relEnd = child.timeFrame.end - sc.timeFrame.start;
@@ -1112,8 +1109,7 @@ updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
       });
     });
 
-    // 5) non-scene elements: unchanged
-    this.editorElements.forEach((el) => {
+     this.editorElements.forEach((el) => {
       if (el.type !== "scene") {
         if (!el.fabricObject) return;
         const inRange =
@@ -1126,69 +1122,12 @@ updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
       }
     });
 
-    // 6) update media & SVGs
-    this.updateAudioElements();
+     this.updateAudioElements();
     this.updateVideoElements();
     this.updateSvgElements();
 
-    // 7) re-render
-    this.canvas?.requestRenderAll();
+     this.canvas?.requestRenderAll();
   }
-
-
-
-
-
-
-
-  // updateTimeTo(newTime: number) {
-  //   this.setCurrentTimeInMs(newTime);
-  //   this.animationTimeLine.seek(newTime);
-  //   if (this.canvas) {
-  //     this.canvas.backgroundColor = this.backgroundColor;
-  //   }
-
-  //   // Update visibility for all elements including scenes
-  //   this.editorElements.forEach((e) => {
-  //     if (!e.fabricObject) return;
-
-  //     const isInside = e.timeFrame.start <= newTime && newTime <= e.timeFrame.end;
-
-  //     if (e.type === 'scene') {
-  //       const sceneElem = e as SceneEditorElement;
-  //       // Handle scene visibility
-  //       if (Array.isArray(sceneElem.fabricObject)) {
-  //         sceneElem.fabricObject.forEach(obj => {
-  //           obj.visible = isInside;
-  //         });
-  //       }
-  //       // Handle child elements visibility
-  //       if (sceneElem.properties.elements?.length) {
-  //         sceneElem.properties.elements.forEach(child => {
-  //           if (child.fabricObject) {
-  //             const childIsInside = child.timeFrame.start <= newTime && newTime <= child.timeFrame.end;
-  //             if (Array.isArray(child.fabricObject)) {
-  //               child.fabricObject.forEach(obj => obj.visible = childIsInside);
-  //             } else {
-  //               child.fabricObject.visible = childIsInside;
-  //             }
-  //           }
-  //         });
-  //       }
-  //     } else {
-  //       // Regular elements
-  //       if (Array.isArray(e.fabricObject)) {
-  //         e.fabricObject.forEach(obj => obj.visible = isInside);
-  //       } else {
-  //         e.fabricObject.visible = isInside;
-  //       }
-  //     }
-  //   });
-
-  //   this.updateAudioElements();
-  //   this.updateVideoElements();
-  //   this.updateSvgElements();
-  // }
 
   handleSeek(seek: number) {
     if (this.playing) {
