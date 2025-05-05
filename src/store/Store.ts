@@ -72,75 +72,24 @@ export class Store {
     this.selectedVideoFormat = 'mp4'
     makeAutoObservable(this)
   }
-
-  
-
-  // In your store.ts file, add this method to your Store class
-updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
-  // Update the scene element's timeframe
-  const sceneElement = this.editorElements.find(
-      e => e.type === "scene" && 
-      (e as SceneEditorElement).properties.sceneIndex === sceneIndex
-  ) as SceneEditorElement | undefined;
-  
-  if (sceneElement) {
-      this.updateEditorElementTimeFrame(sceneElement, {
-          start: newStart,
-          end: newEnd
-      });
-  }
-
-  // Update all elements that belong to this scene
-  this.editorElements.forEach(element => {
-      if (element.type !== "scene" && element.id === sceneElement?.id) {
-          const duration = element.timeFrame.end - element.timeFrame.start;
-          this.updateEditorElementTimeFrame(element, {
-              start: newStart,
-              end: newStart + duration
-          });
-      }
-  });
-
-  // Update maxTime if needed
-  const maxSceneEnd = Math.max(...this.scenes.map((_, idx) => {
-      const scene = this.editorElements.find(
-          e => e.type === "scene" && 
-          (e as SceneEditorElement).properties.sceneIndex === idx
-      ) as SceneEditorElement | undefined;
-      return scene?.timeFrame.end || 0;
-  }));
-  
-  if (maxSceneEnd > this.maxTime) {
-      this.setMaxTime(maxSceneEnd);
-  }
-}
-
-  
-
-
   getMaxTime() {
     if (this.scenes.length > 0) {
       return this.scenes.length * 10 * 1000;
     }
     return 30 * 1000;
   }
-
   setActiveScene(index: number) {
     this.activeSceneIndex = index;
     this.refreshElements();
   }
-
   addSceneResource(scene: Scene) {
     console.log("[store] before:", this.scenes.length);
     this.scenes.push(scene);
     console.log("[store] after:", this.scenes.length);
-
     this.maxTime = this.getMaxTime();
-
     const idx = this.scenes.length - 1;
     const sceneStart = idx * 10 * 1000;
     const sceneEnd = (idx + 1) * 10 * 1000;
-
     const sceneElem: SceneEditorElement = {
       id: `scene-${idx}`,
       name: `Scene ${idx + 1}`,
@@ -160,8 +109,6 @@ updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
       fabricObject: undefined,
     };
     this.editorElements.push(sceneElem);
-
-   
     this.refreshAnimations();
   }
 
@@ -826,9 +773,7 @@ updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
   }
 
   addEditorElement(editorElement: EditorElement) {
-    console.log('Adding new element:', editorElement); // Log the element being added
-
-    // Check if scene exists and is active
+    console.log('Adding new element:', editorElement); 
     const activeScene = this.editorElements.find(
       el => el.type === 'scene' &&
         (el as SceneEditorElement).properties.sceneIndex === this.activeSceneIndex
@@ -836,34 +781,23 @@ updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
 
     if (activeScene) {
       console.log('Active scene found - adding to scene:', activeScene.id);
-
-      // Initialize elements array if it doesn't exist
       if (!activeScene.properties.elements) {
         activeScene.properties.elements = [];
         console.log('Created new elements array for scene');
       }
-
-      // Add the element
       activeScene.properties.elements.push(editorElement);
       console.log('Element added to scene. Scene elements count:',
         activeScene.properties.elements.length);
-
-      // Update the scene
       this.updateEditorElement(activeScene);
     } else {
       console.log('No active scene - adding to main editor elements');
       this.setEditorElements([...this.editorElements, editorElement]);
       console.log('Main elements count:', this.editorElements.length);
     }
-
-    // Log the final state
-    console.group('Current State');
-    console.log('All editor elements:', this.editorElements);
     if (activeScene) {
       console.log('Active scene elements:', activeScene.properties.elements);
     }
     console.groupEnd();
-
     this.refreshElements();
     this.setSelectedElement(editorElement);
   }
@@ -892,9 +826,7 @@ updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
       console.warn('No SVG selected.');
       return;
     }
-    // Clear previous animation instances when reassigning.
     this.clearCurrentAnimations();
-    // Set new animation type.
     this.selectedElement.properties.animationType = animationType;
     this.updateEditorElement(this.selectedElement);
     console.log(
@@ -1055,75 +987,87 @@ updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
 
 
  
-  updateTimeTo(newTime: number) {
-    this.setCurrentTimeInMs(newTime);
-    this.animationTimeLine.seek(newTime);
+updateTimeTo(newTime: number) {
+ 
+  this.setCurrentTimeInMs(newTime);
+  this.animationTimeLine.seek(newTime);
 
-    if (this.canvas) {
-      this.canvas.backgroundColor = this.backgroundColor;
-    }
-    let cursor = 0;
-    const sceneSegments = this.editorElements
-      .filter((e) => e.type === "scene")
-      .sort(
-        (a, b) =>
-          (a as SceneEditorElement).properties.sceneIndex -
-          (b as SceneEditorElement).properties.sceneIndex
-      )
-      .map((e) => {
-        const sc = e as SceneEditorElement;
-        const dur = sc.timeFrame.end - sc.timeFrame.start;
-        const seg = { sc, start: cursor, end: cursor + dur };
-        cursor += dur;
-        return seg;
-      });
-
-     sceneSegments.forEach(({ sc, start, end }) => {
-      const idx = sc.properties.sceneIndex;
-      const inPlayhead = newTime >= start && newTime <= end;
-      const isActive = idx === this.activeSceneIndex;
-      const sceneVisible = inPlayhead || isActive;
-
-       if (Array.isArray(sc.fabricObject)) {
-        sc.fabricObject.forEach((o) => (o.visible = sceneVisible));
-      }
-
-       sc.properties.elements?.forEach((child) => {
-        if (!child.fabricObject) return;
-        const relStart = child.timeFrame.start - sc.timeFrame.start;
-        const relEnd = child.timeFrame.end - sc.timeFrame.start;
-        const childGlobalStart = start + relStart;
-        const childGlobalEnd = start + relEnd;
-        const childVisible =
-          newTime >= childGlobalStart && newTime <= childGlobalEnd;
-
-        if (Array.isArray(child.fabricObject)) {
-          child.fabricObject.forEach((o) => (o.visible = childVisible));
-        } else {
-          child.fabricObject.visible = childVisible;
-        }
-      });
-    });
-
-     this.editorElements.forEach((el) => {
-      if (el.type !== "scene") {
-        if (!el.fabricObject) return;
-        const inRange =
-          newTime >= el.timeFrame.start && newTime <= el.timeFrame.end;
-        if (Array.isArray(el.fabricObject)) {
-          el.fabricObject.forEach((o) => (o.visible = inRange));
-        } else {
-          el.fabricObject.visible = inRange;
-        }
-      }
-    });
-
-     this.updateAudioElements();
-    this.updateVideoElements();
-    this.updateSvgElements();
-
-     this.canvas?.requestRenderAll();
+ 
+  if (this.canvas) {
+    this.canvas.backgroundColor = this.backgroundColor;
   }
+
+ 
+  let cursor = 0;
+  const sceneSegments = this.editorElements
+    .filter((e) => e.type === "scene")
+    .sort(
+      (a, b) =>
+        (a as SceneEditorElement).properties.sceneIndex -
+        (b as SceneEditorElement).properties.sceneIndex
+    )
+    .map((e) => {
+      const sc = e as SceneEditorElement;
+      const dur = sc.timeFrame.end - sc.timeFrame.start;
+      const seg = { sc, start: cursor, end: cursor + dur };
+      cursor += dur;
+      return seg;
+    });
+
+ 
+  sceneSegments.forEach(({ sc, start, end }) => {
+    const idx = sc.properties.sceneIndex;
+    const inPlayhead = newTime >= start && newTime <= end;
+    const isActive = idx === this.activeSceneIndex;
+    const sceneVisible = inPlayhead || isActive;
+
+ 
+    if (Array.isArray(sc.fabricObject)) {
+      sc.fabricObject.forEach((o) => (o.visible = sceneVisible));
+    }
+
+ 
+    sc.properties.elements?.forEach((child) => {
+      if (!child.fabricObject) return;
+      const relStart = child.timeFrame.start - sc.timeFrame.start;
+      const relEnd = child.timeFrame.end - sc.timeFrame.start;
+      const childGlobalStart = start + relStart;
+      const childGlobalEnd = start + relEnd;
+      const childVisible =
+        newTime >= childGlobalStart && newTime <= childGlobalEnd;
+
+      if (Array.isArray(child.fabricObject)) {
+        child.fabricObject.forEach((o) => (o.visible = childVisible));
+      } else {
+        child.fabricObject.visible = childVisible;
+      }
+    });
+  });
+
+ 
+  this.editorElements.forEach((el) => {
+    if (el.type !== "scene") {
+      if (!el.fabricObject) return;
+      const inRange =
+        newTime >= el.timeFrame.start && newTime <= el.timeFrame.end;
+      if (Array.isArray(el.fabricObject)) {
+        el.fabricObject.forEach((o) => (o.visible = inRange));
+      } else {
+        el.fabricObject.visible = inRange;
+      }
+    }
+  });
+
+ 
+  this.updateAudioElements();
+  this.updateVideoElements();
+  this.updateSvgElements();
+
+ 
+  this.canvas?.requestRenderAll();
+}
+
+ 
 
   handleSeek(seek: number) {
     if (this.playing) {
@@ -2060,7 +2004,8 @@ updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
             const { x, y, width, height } = element.placement;
             const onPartLoaded = () => {
               if (++loaded === total) {
-                element.fabricObject = parts as any;
+                // @ts-ignore
+                element.fabricObject = parts;
                 canvas.requestRenderAll();
               }
             };
@@ -2135,28 +2080,28 @@ updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
                     canvas.add(childElement.fabricObject);
                     break;
                   case 'image': {
-
+                   
                     if (childElement.fabricObject) {
                       canvas.add(childElement.fabricObject);
                       break;
                     }
 
-
+                  
                     let imgElement = document.getElementById(childElement.properties.elementId) as HTMLImageElement;
 
                     if (!imgElement) {
-
+                 
                       imgElement = document.createElement('img');
                       imgElement.id = childElement.properties.elementId;
                       imgElement.src = childElement.properties.src;
                       imgElement.crossOrigin = 'anonymous';
-                      imgElement.style.display = 'none';
+                      imgElement.style.display = 'none';  
                       document.body.appendChild(imgElement);
                     }
 
-
+                 
                     const onImageLoad = () => {
-
+                  
                       if (childElement.fabricObject) {
                         canvas.add(childElement.fabricObject);
                         return;
@@ -2186,16 +2131,16 @@ updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
                     break;
                   }
                   case 'video': {
-
+                   
                     const videoEl = document.getElementById(
                       childElement.properties.elementId
                     ) as HTMLVideoElement | null;
                     if (!videoEl || !isHtmlVideoElement(videoEl)) break;
-
-
+                  
+               
                     if (!childElement.fabricObject) {
                       const onMeta = () => {
-
+                   
                         const vidObj = new fabric.Image(videoEl, {
                           name: childElement.id,
                           left: childElement.placement.x,
@@ -2211,21 +2156,21 @@ updateSceneTiming(sceneIndex: number, newStart: number, newEnd: number) {
                         canvas.requestRenderAll();
                         videoEl.removeEventListener('loadedmetadata', onMeta);
                       };
-
+                  
                       videoEl.addEventListener('loadedmetadata', onMeta);
-
+                 
                       if (videoEl.readyState >= 1) onMeta();
-
-                      break;
+                  
+                      break;  
                     }
-
-
+                  
+ 
                     canvas.add(childElement.fabricObject as fabric.Image);
                     this.updateVideoElements();
                     break;
                   }
-
-
+                  
+                  
 
                   case 'audio': {
                     if (!childElement.fabricObject) {
