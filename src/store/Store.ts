@@ -19,35 +19,30 @@ import {
   Effect,
   TextEditorElement,
   SvgEditorElement,
+  SceneEditorElement,
+  Scene,
 } from '../types'
 import { FabricUitls } from '@/utils/fabric-utils'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { toBlobURL } from '@ffmpeg/util'
 import { handstandAnimation, walkingAnimations } from '@/utils/animations'
 import { HANDSTAND, hideLoading, showLoading, WALKING } from '@/utils/constants'
-
 export class Store {
   canvas: fabric.Canvas | null
-
   backgroundColor: string
-
   selectedMenuOption: MenuOption
   audios: string[]
   videos: string[]
   images: string[]
   svgs: string[]
-
   editorElements: EditorElement[]
   selectedElement: EditorElement | null
-
   maxTime: number
   animations: Animation[]
   animationTimeLine: anime.AnimeTimelineInstance
   playing: boolean
-
   currentKeyFrame: number
   fps: number
-
   possibleVideoFormats: string[] = ['mp4', 'webm']
   selectedVideoFormat: 'mp4' | 'webm'
   audioContext: AudioContext | null = null
@@ -55,9 +50,8 @@ export class Store {
   copiedElement: EditorElement | null = null
   currentAnimations: anime.AnimeInstance[] = []
   showStorylinePopup = false;
- 
-
-
+  scenes: Scene[] = [];
+  activeSceneIndex: number = 0;
 
   constructor() {
     this.canvas = null
@@ -67,7 +61,7 @@ export class Store {
     this.audios = []
     this.editorElements = []
     this.backgroundColor = '#404040'
-    this.maxTime = 30 * 1000
+    this.maxTime = this.getMaxTime()
     this.playing = false
     this.currentKeyFrame = 0
     this.selectedElement = null
@@ -79,22 +73,66 @@ export class Store {
     makeAutoObservable(this)
   }
 
+
+  getMaxTime() {
+    if (this.scenes.length > 0) {
+      return this.scenes.length * 10 * 1000;
+    }
+    return 30 * 1000;
+  }
+
+  setActiveScene(index: number) {
+    this.activeSceneIndex = index;
+    this.refreshElements();
+  }
+
+  addSceneResource(scene: Scene) {
+    console.log("[store] before:", this.scenes.length);
+    this.scenes.push(scene);
+    console.log("[store] after:", this.scenes.length);
+
+    this.maxTime = this.getMaxTime();
+
+    const idx = this.scenes.length - 1;
+    const sceneStart = idx * 10 * 1000;
+    const sceneEnd = (idx + 1) * 10 * 1000;
+
+    const sceneElem: SceneEditorElement = {
+      id: `scene-${idx}`,
+      name: `Scene ${idx + 1}`,
+      type: 'scene',
+      placement: { x: 0, y: 0, width: this.canvas?.width || 800, height: this.canvas?.height || 600, rotation: 0, scaleX: 1, scaleY: 1 },
+      timeFrame: {
+        start: sceneStart,
+        end: sceneEnd
+      },
+      properties: {
+        sceneIndex: idx,
+        backgrounds: scene.backgrounds,
+        gifs: scene.gifs,
+        animations: scene.animations,
+        elements: scene.elements
+      },
+      fabricObject: undefined,
+    };
+    this.editorElements.push(sceneElem);
+
+    // Update timeline duration
+    this.refreshAnimations();
+  }
+
   setShowStorylinePopup(value: boolean) {
     this.showStorylinePopup = value;
   }
-
   createStoryline() {
     this.setShowStorylinePopup(true);
   }
-
   moveElement(draggedIndex: number, hoveredIndex: number) {
     const updatedElements = [...this.editorElements]
     const [draggedElement] = updatedElements.splice(draggedIndex, 1)
     updatedElements.splice(hoveredIndex, 0, draggedElement)
-
     this.setEditorElements(updatedElements)
   }
-
   reorderFabricObjects(draggedIndex: number, hoveredIndex: number) {
     const draggedElement = this.editorElements[draggedIndex]
     const hoveredElement = this.editorElements[hoveredIndex]
@@ -148,32 +186,27 @@ export class Store {
       console.warn(' No layer selected for copying.')
       return
     }
-
     if (this.copiedElement) {
       console.warn(' Already copied a layer. Paste before copying again.')
       return
     }
-
     this.selectedElement.fabricObject?.clone((cloned: fabric.Object) => {
       if (!cloned) {
         console.error('Failed to clone fabric object!')
         return
       }
-
       cloned.set({
         left: this.selectedElement?.placement.x,
         top: this.selectedElement?.placement.y,
         selectable: true,
         evented: true,
       })
-
       this.copiedElement = {
         ...this.selectedElement,
         id: getUid(),
         name: `Layer (${this.selectedElement?.id})`,
         fabricObject: cloned,
       } as EditorElement
-
       console.log('Copied Layer:', this.copiedElement.name)
     })
   }
@@ -183,10 +216,8 @@ export class Store {
       console.warn(' No copied layer! Copy one first.');
       return;
     }
-
     const elementToPaste = { ...this.copiedElement };
     this.copiedElement = null;
-
     if (elementToPaste) {
       elementToPaste.fabricObject?.clone((cloned: fabric.Object) => {
         if (!cloned) {
@@ -194,7 +225,6 @@ export class Store {
           return;
         }
         let newProperties = { ...elementToPaste.properties };
-
         if (elementToPaste.type === 'audio') {
           const newAudioId = getUid();
           const newAudioElement = document.createElement('audio');
@@ -206,7 +236,6 @@ export class Store {
             elementId: newAudioElement.id,
           };
         }
-
         if (elementToPaste.type === 'video') {
           const newVideoId = getUid();
           const newVideoElement = document.createElement('video');
@@ -219,7 +248,6 @@ export class Store {
             elementId: newVideoElement.id,
           };
         }
-
         const newElement = {
           ...elementToPaste,
           id: getUid(),
@@ -236,12 +264,10 @@ export class Store {
           properties: newProperties,
           fabricObject: cloned,
         } as EditorElement;
-
         this.addEditorElement(newElement);
         this.canvas?.add(cloned);
         this.canvas?.renderAll();
-
-        console.log('Pasted Full Layer:', newElement.name);
+        console.log('Pasted Full Layer', newElement.name);
       });
     } else {
       console.warn('Frame too small to paste!');
@@ -287,7 +313,6 @@ export class Store {
         return
       }
       let newProperties = { ...selectedElement.properties }
-
       if (selectedElement.type === 'audio') {
         const newAudioId = getUid()
         const newAudioElement = document.createElement('audio')
@@ -312,7 +337,6 @@ export class Store {
           elementId: newVideoElement.id,
         }
       }
-
       const newElement = {
         ...selectedElement,
         id: getUid(),
@@ -334,67 +358,53 @@ export class Store {
     })
   }
 
-
-
-
-
   setFontSize(size: number) {
     if (!this.selectedElement || this.selectedElement.type !== 'text') return
-
     this.selectedElement.properties.fontSize = size
       ; (this.selectedElement.fabricObject as fabric.Text)?.set('fontSize', size)
-
     this.updateEditorElement(this.selectedElement)
     this.canvas?.renderAll()
   }
 
   setTextColor(color: string) {
     if (!this.selectedElement || this.selectedElement.type !== 'text') return
-
     this.selectedElement.properties.textColor = color
       ; (this.selectedElement.fabricObject as fabric.Text)?.set('fill', color)
-
     this.updateEditorElement(this.selectedElement)
     this.canvas?.renderAll()
   }
 
   toggleBold() {
     if (!this.selectedElement || this.selectedElement.type !== 'text') return
-
     const isBold = this.selectedElement.properties.fontWeight === 'bold'
     this.selectedElement.properties.fontWeight = isBold ? 'normal' : 'bold'
       ; (this.selectedElement.fabricObject as fabric.Text)?.set(
         'fontWeight',
         isBold ? 'normal' : 'bold'
       )
-
     this.updateEditorElement(this.selectedElement)
     this.canvas?.renderAll()
   }
 
   toggleItalic() {
     if (!this.selectedElement || this.selectedElement.type !== 'text') return
-
     const isItalic = this.selectedElement.properties.fontStyle === 'italic'
     this.selectedElement.properties.fontStyle = isItalic ? 'normal' : 'italic'
       ; (this.selectedElement.fabricObject as fabric.Text)?.set(
         'fontStyle',
         isItalic ? 'normal' : 'italic'
       )
-
     this.updateEditorElement(this.selectedElement)
     this.canvas?.renderAll()
   }
 
   setFontFamily(fontFamily: string) {
     if (!this.selectedElement || this.selectedElement.type !== 'text') return
-
     this.selectedElement.properties.fontFamily = fontFamily
       ; (this.selectedElement.fabricObject as fabric.Text)?.set(
         'fontFamily',
         fontFamily
       )
-
     this.updateEditorElement(this.selectedElement)
     this.canvas?.renderAll()
   }
@@ -402,29 +412,24 @@ export class Store {
   get currentTimeInMs() {
     return (this.currentKeyFrame * 1000) / this.fps
   }
-
   setCurrentTimeInMs(time: number) {
     this.currentKeyFrame = Math.floor((time / 1000) * this.fps)
   }
-
   setSelectedMenuOption(selectedMenuOption: MenuOption) {
     this.selectedMenuOption = selectedMenuOption
   }
-
   setCanvas(canvas: fabric.Canvas | null) {
     this.canvas = canvas
     if (canvas) {
       canvas.backgroundColor = this.backgroundColor
     }
   }
-
   setBackgroundColor(backgroundColor: string) {
     this.backgroundColor = backgroundColor
     if (this.canvas) {
       this.canvas.backgroundColor = backgroundColor
     }
   }
-
   updateEffect(id: string, effect: Effect) {
     const index = this.editorElements.findIndex((element) => element.id === id)
     const element = this.editorElements[index]
@@ -433,11 +438,9 @@ export class Store {
     }
     this.refreshElements()
   }
-
   setVideos(videos: string[]) {
     this.videos = videos
   }
-
   addVideoResource(video: string) {
     this.videos = [...this.videos, video]
   }
@@ -466,7 +469,7 @@ export class Store {
   refreshAnimations() {
     anime.remove(this.animationTimeLine)
     this.animationTimeLine = anime.timeline({
-      duration: this.maxTime,
+      duration: this.getMaxTime(),
       autoplay: false,
     })
     for (let i = 0; i < this.animations.length; i++) {
@@ -704,40 +707,50 @@ export class Store {
             },
             timeEndOfSlideIn
           )
-
           break
         }
       }
     }
   }
-
   removeAnimation(id: string) {
     this.animations = this.animations.filter((animation) => animation.id !== id)
     this.refreshAnimations()
   }
 
-  setSelectedElement(selectedElement: EditorElement | null) {
-    this.selectedElement = selectedElement
-    if (this.canvas) {
-      if (selectedElement?.fabricObject)
-        this.canvas.setActiveObject(selectedElement.fabricObject)
-      else this.canvas.discardActiveObject()
+  setSelectedElement(el: EditorElement | null) {
+
+    if (this.selectedElement?.id === el?.id) {
+      return;
     }
+    this.selectedElement = el;
+    if (!this.canvas) return;
+    this.canvas.discardActiveObject();
+    if (el) {
+      const fObj = el.fabricObject;
+      if (Array.isArray(fObj) && fObj.length > 0) {
+        const selection = new fabric.ActiveSelection(fObj, {
+          canvas: this.canvas
+        });
+        this.canvas.setActiveObject(selection);
+      } else if (fObj instanceof fabric.Object) {
+        this.canvas.setActiveObject(fObj);
+      }
+    }
+    this.canvas.requestRenderAll();
   }
+
   updateSelectedElement() {
     this.selectedElement =
       this.editorElements.find(
         (element) => element.id === this.selectedElement?.id
       ) ?? null
   }
-
   setEditorElements(editorElements: EditorElement[]) {
     this.editorElements = editorElements
     this.updateSelectedElement()
     this.refreshElements()
     // this.refreshAnimations();
   }
-
   updateEditorElement(editorElement: EditorElement) {
     this.setEditorElements(
       this.editorElements.map((element) =>
@@ -745,7 +758,6 @@ export class Store {
       )
     )
   }
-
   updateEditorElementTimeFrame(
     editorElement: EditorElement,
     timeFrame: Partial<TimeFrame>
@@ -770,62 +782,90 @@ export class Store {
   }
 
   addEditorElement(editorElement: EditorElement) {
-    this.setEditorElements([...this.editorElements, editorElement])
-    this.refreshElements()
-    this.setSelectedElement(this.editorElements[this.editorElements.length - 1])
-  }
+    console.log('Adding new element:', editorElement); // Log the element being added
 
+    // Check if scene exists and is active
+    const activeScene = this.editorElements.find(
+      el => el.type === 'scene' &&
+        (el as SceneEditorElement).properties.sceneIndex === this.activeSceneIndex
+    ) as SceneEditorElement | undefined;
+
+    if (activeScene) {
+      console.log('Active scene found - adding to scene:', activeScene.id);
+
+      // Initialize elements array if it doesn't exist
+      if (!activeScene.properties.elements) {
+        activeScene.properties.elements = [];
+        console.log('Created new elements array for scene');
+      }
+
+      // Add the element
+      activeScene.properties.elements.push(editorElement);
+      console.log('Element added to scene. Scene elements count:',
+        activeScene.properties.elements.length);
+
+      // Update the scene
+      this.updateEditorElement(activeScene);
+    } else {
+      console.log('No active scene - adding to main editor elements');
+      this.setEditorElements([...this.editorElements, editorElement]);
+      console.log('Main elements count:', this.editorElements.length);
+    }
+
+    // Log the final state
+    console.group('Current State');
+    console.log('All editor elements:', this.editorElements);
+    if (activeScene) {
+      console.log('Active scene elements:', activeScene.properties.elements);
+    }
+    console.groupEnd();
+
+    this.refreshElements();
+    this.setSelectedElement(editorElement);
+  }
   removeEditorElement(id: string) {
     this.setEditorElements(
       this.editorElements.filter((editorElement) => editorElement.id !== id)
     )
     this.refreshElements()
   }
-
   setMaxTime(maxTime: number) {
-    this.maxTime = maxTime
+    if (this.scenes.length > 0) {
+      this.maxTime = this.getMaxTime();
+    } else {
+      this.maxTime = maxTime;
+    }
+    this.refreshAnimations();
   }
-
   clearCurrentAnimations() {
     if (this.currentAnimations && this.currentAnimations.length) {
       this.currentAnimations.forEach((anim) => anim.pause());
     }
     this.currentAnimations = [];
   }
-
   assignAnimationToSelectedSvg(animationType: string) {
     if (!this.selectedElement || this.selectedElement.type !== 'svg') {
       console.warn('No SVG selected.');
       return;
     }
-
     // Clear previous animation instances when reassigning.
     this.clearCurrentAnimations();
-
     // Set new animation type.
     this.selectedElement.properties.animationType = animationType;
     this.updateEditorElement(this.selectedElement);
-
     console.log(
       `Assigned animation: ${animationType} to ${this.selectedElement.id}`
     );
   }
 
-
   applyWalkingAnimation(svgElement: fabric.Group) {
     if (!svgElement) return;
-
-    // Cancel any previous animations.
     this.clearCurrentAnimations();
-
-    // Flatten the structure.
     const allObjects = this.getAllObjectsRecursively(svgElement);
     console.log(
       'Available SVG Parts:',
       allObjects.map((obj) => (obj as any).dataName || obj.name)
     );
-
-    // Animate each part based on walkingAnimations.
     Object.entries(walkingAnimations).forEach(([partId, animationData]) => {
       const targetElement = allObjects.find(
         (obj) => ((obj as any).dataName || obj.name) === partId
@@ -848,8 +888,6 @@ export class Store {
       });
       this.currentAnimations.push(animInstance);
     });
-
-    // Animate the whole group moving forward.
     const groupAnim = anime({
       targets: svgElement,
       left: [
@@ -879,22 +917,16 @@ export class Store {
       console.warn('⚠️ No SVG selected or invalid selection.');
       return;
     }
-
-    // Always clear previous animations before starting a new one.
     this.clearCurrentAnimations();
-
     const animationType = this.selectedElement.properties.animationType;
     const fabricObject = this.selectedElement.fabricObject as fabric.Group;
-
     if (!fabricObject) {
       console.warn('⚠️ No fabric object found for the selected SVG.');
       return;
     }
-
     console.log(
       `🎬 Playing animation: ${animationType} for SVG ID: ${this.selectedElement.id}`
     );
-
     if (animationType === WALKING) {
       this.applyWalkingAnimation(fabricObject);
     } else if (animationType === HANDSTAND) {
@@ -909,7 +941,6 @@ export class Store {
     this.updateVideoElements();
     this.updateAudioElements();
     if (playing) {
-      // Instead of resuming any previous animations, we always start the new one.
       this.playSelectedSvgAnimation();
       this.startedTime = Date.now();
       this.startedTimePlay = this.currentTimeInMs;
@@ -917,28 +948,21 @@ export class Store {
         this.playFrames();
       });
     } else {
-      // Pause all running animations.
       this.currentAnimations.forEach((anim) => anim.pause());
     }
   }
 
   applyHandstandAnimation(svgElement: fabric.Group) {
     if (!svgElement) return;
-
-    // Cancel any previous animations.
     this.clearCurrentAnimations();
-
     console.log(
       `🤸 Handstand animation started for SVG ID: ${this.selectedElement?.id}`
     );
-
-    // Flatten the structure (using the same approach as in walking animation).
     const allObjects = this.getAllObjectsRecursively(svgElement);
     console.log(
       '🔍 Available SVG Parts:',
       allObjects.map((obj) => (obj as any).dataName || obj.name)
     );
-
     Object.entries(handstandAnimation).forEach(([partId, animationData]) => {
       const targetElement = allObjects.find(
         (obj) => ((obj as any).dataName || obj.name) === partId
@@ -947,17 +971,10 @@ export class Store {
         console.warn(`⚠️ Missing SVG part: ${partId}, skipping animation.`);
         return;
       }
-
-      // Reset the angle to ensure a clean start.
       targetElement.set('angle', 0);
-
-      // For the hand (or any other part that needs repositioning), adjust its origin once.
       if (partId === 'hand') {
         targetElement.setPositionByOrigin(new fabric.Point(-1, -180), 'center', 'top');
       }
-
-      console.log(`✅ Found SVG part: ${partId}, applying handstand animation`);
-
       const animInstance = anime({
         targets: { angle: targetElement.angle || 0 },
         angle: animationData.keys.map((k) => k.v),
@@ -965,7 +982,6 @@ export class Store {
         easing: 'linear',
         loop: true,
         update: (anim) => {
-          // Update the target's angle property on each frame.
           targetElement.set('angle', Number(anim.animations[0].currentValue));
           this.canvas?.renderAll();
         },
@@ -973,10 +989,8 @@ export class Store {
       this.currentAnimations.push(animInstance);
     });
   }
-
   startedTime = 0
   startedTimePlay = 0
-
   playFrames() {
     if (!this.playing) {
       return
@@ -993,22 +1007,144 @@ export class Store {
       })
     }
   }
+
+
+
+  /** inside class Store */
   updateTimeTo(newTime: number) {
-    this.setCurrentTimeInMs(newTime)
-    this.animationTimeLine.seek(newTime)
+    // 1) update keyframe & anime timeline
+    this.setCurrentTimeInMs(newTime);
+    this.animationTimeLine.seek(newTime);
+
+    // 2) sync canvas background
     if (this.canvas) {
-      this.canvas.backgroundColor = this.backgroundColor
+      this.canvas.backgroundColor = this.backgroundColor;
     }
-    this.editorElements.forEach((e) => {
-      if (!e.fabricObject) return
-      const isInside =
-        e.timeFrame.start <= newTime && newTime <= e.timeFrame.end
-      e.fabricObject.visible = isInside
-    })
-    this.updateAudioElements()
-    this.updateVideoElements()
-    this.updateSvgElements()
+
+    // 3) build dynamic scene segments (no gaps)
+    let cursor = 0;
+    const sceneSegments = this.editorElements
+      .filter((e) => e.type === "scene")
+      .sort(
+        (a, b) =>
+          (a as SceneEditorElement).properties.sceneIndex -
+          (b as SceneEditorElement).properties.sceneIndex
+      )
+      .map((e) => {
+        const sc = e as SceneEditorElement;
+        const dur = sc.timeFrame.end - sc.timeFrame.start;
+        const seg = { sc, start: cursor, end: cursor + dur };
+        cursor += dur;
+        return seg;
+      });
+
+    // 4) show/hide scenes & their children
+    sceneSegments.forEach(({ sc, start, end }) => {
+      const idx = sc.properties.sceneIndex;
+      const inPlayhead = newTime >= start && newTime <= end;
+      const isActive = idx === this.activeSceneIndex;
+      const sceneVisible = inPlayhead || isActive;
+
+      // show/hide scene backgrounds + GIFs
+      if (Array.isArray(sc.fabricObject)) {
+        sc.fabricObject.forEach((o) => (o.visible = sceneVisible));
+      }
+
+      // show/hide each child only in its own timeFrame
+      sc.properties.elements?.forEach((child) => {
+        if (!child.fabricObject) return;
+        const relStart = child.timeFrame.start - sc.timeFrame.start;
+        const relEnd = child.timeFrame.end - sc.timeFrame.start;
+        const childGlobalStart = start + relStart;
+        const childGlobalEnd = start + relEnd;
+        const childVisible =
+          newTime >= childGlobalStart && newTime <= childGlobalEnd;
+
+        if (Array.isArray(child.fabricObject)) {
+          child.fabricObject.forEach((o) => (o.visible = childVisible));
+        } else {
+          child.fabricObject.visible = childVisible;
+        }
+      });
+    });
+
+    // 5) non-scene elements: unchanged
+    this.editorElements.forEach((el) => {
+      if (el.type !== "scene") {
+        if (!el.fabricObject) return;
+        const inRange =
+          newTime >= el.timeFrame.start && newTime <= el.timeFrame.end;
+        if (Array.isArray(el.fabricObject)) {
+          el.fabricObject.forEach((o) => (o.visible = inRange));
+        } else {
+          el.fabricObject.visible = inRange;
+        }
+      }
+    });
+
+    // 6) update media & SVGs
+    this.updateAudioElements();
+    this.updateVideoElements();
+    this.updateSvgElements();
+
+    // 7) re-render
+    this.canvas?.requestRenderAll();
   }
+
+
+
+
+
+
+
+  // updateTimeTo(newTime: number) {
+  //   this.setCurrentTimeInMs(newTime);
+  //   this.animationTimeLine.seek(newTime);
+  //   if (this.canvas) {
+  //     this.canvas.backgroundColor = this.backgroundColor;
+  //   }
+
+  //   // Update visibility for all elements including scenes
+  //   this.editorElements.forEach((e) => {
+  //     if (!e.fabricObject) return;
+
+  //     const isInside = e.timeFrame.start <= newTime && newTime <= e.timeFrame.end;
+
+  //     if (e.type === 'scene') {
+  //       const sceneElem = e as SceneEditorElement;
+  //       // Handle scene visibility
+  //       if (Array.isArray(sceneElem.fabricObject)) {
+  //         sceneElem.fabricObject.forEach(obj => {
+  //           obj.visible = isInside;
+  //         });
+  //       }
+  //       // Handle child elements visibility
+  //       if (sceneElem.properties.elements?.length) {
+  //         sceneElem.properties.elements.forEach(child => {
+  //           if (child.fabricObject) {
+  //             const childIsInside = child.timeFrame.start <= newTime && newTime <= child.timeFrame.end;
+  //             if (Array.isArray(child.fabricObject)) {
+  //               child.fabricObject.forEach(obj => obj.visible = childIsInside);
+  //             } else {
+  //               child.fabricObject.visible = childIsInside;
+  //             }
+  //           }
+  //         });
+  //       }
+  //     } else {
+  //       // Regular elements
+  //       if (Array.isArray(e.fabricObject)) {
+  //         e.fabricObject.forEach(obj => obj.visible = isInside);
+  //       } else {
+  //         e.fabricObject.visible = isInside;
+  //       }
+  //     }
+  //   });
+
+  //   this.updateAudioElements();
+  //   this.updateVideoElements();
+  //   this.updateSvgElements();
+  // }
 
   handleSeek(seek: number) {
     if (this.playing) {
@@ -1207,7 +1343,6 @@ export class Store {
             const canvasHeight = this.canvas?.height ?? 600
             const groupWidth = fullSvgGroup.width || 0
             const groupHeight = fullSvgGroup.height || 0
-
             fullSvgGroup.set({
               left: canvasWidth / 2 - (groupWidth * scaleFactor) / 2,
               top: canvasHeight / 2 - (groupHeight * scaleFactor) / 2,
@@ -1219,10 +1354,8 @@ export class Store {
               objectCaching: false,
 
             })
-
             this.canvas?.add(fullSvgGroup)
             this.canvas?.renderAll()
-
             console.log(
               'SVG Added to Canvas. Canvas Objects:',
               this.canvas?.getObjects()
@@ -1238,7 +1371,6 @@ export class Store {
               ' All nested objects (including sub-groups and paths):',
               allNestedObjects
             )
-
             const editorElement: SvgEditorElement = {
               id,
               name: `SVG ${index + 1}`,
@@ -1263,7 +1395,6 @@ export class Store {
               },
               fabricObject: fullSvgGroup,
             }
-
             this.addEditorElement(editorElement)
             this.setSelectedElement(editorElement)
           }
@@ -1395,7 +1526,6 @@ export class Store {
         const { start, end } = element.timeFrame
         const currentTimeMs = this.currentTimeInMs
         const isWithinRange = currentTimeMs >= start && currentTimeMs <= end
-
         if (this.playing && isWithinRange) {
           if (!(element.properties as any).isAudioPlaying) {
             const audioTime = (currentTimeMs - start) / 1000
@@ -1529,34 +1659,26 @@ export class Store {
     let mp4 = this.selectedVideoFormat === 'mp4';
     const canvas = document.getElementById('canvas') as HTMLCanvasElement;
     const stream = canvas.captureStream(30);
-
     const videoElements = this.editorElements.filter(isEditorVideoElement);
     const audioElements = this.editorElements.filter(isEditorAudioElement);
-
     if (!this.audioContext) {
       this.audioContext = new AudioContext();
     }
-
     const audioContext = this.audioContext!;
     const mixedAudioDestination = audioContext.createMediaStreamDestination();
-
-
     videoElements.forEach((video) => {
       const videoElement = document.getElementById(video.properties.elementId) as HTMLVideoElement;
       if (!videoElement) {
         console.warn('Skipping missing video element:', video.properties.elementId);
         return;
       }
-
       videoElement.muted = false;
       videoElement.play().catch((err) => console.error('Video play error:', err));
-
       let sourceNode = this.audioSourceNodes.get(video.properties.elementId);
       if (!sourceNode) {
         sourceNode = audioContext.createMediaElementSource(videoElement);
         this.audioSourceNodes.set(video.properties.elementId, sourceNode);
       }
-
       if (!sourceNode) {
         console.error('Error: sourceNode is undefined for', video.properties.elementId);
         return;
@@ -1565,74 +1687,55 @@ export class Store {
       sourceNode.connect(mixedAudioDestination);
     });
 
-    /** 🎵 Capture standalone audio at correct timing */
     audioElements.forEach((audio) => {
       const audioElement = document.getElementById(audio.properties.elementId) as HTMLAudioElement;
       if (!audioElement) {
         console.warn('Skipping missing audio element:', audio.properties.elementId);
         return;
       }
-
-      const audioStartTime = audio.timeFrame.start / 1000; // Convert ms to seconds
-
-      // Delay the audio start so it plays at the correct trimmed time
+      const audioStartTime = audio.timeFrame.start / 1000;
       setTimeout(() => {
         console.log(`Starting standalone audio at ${audioStartTime}s`);
         audioElement.play().catch((err) => console.error('Audio play error:', err));
       }, audio.timeFrame.start);
-
       let sourceNode = this.audioSourceNodes.get(audio.properties.elementId);
       if (!sourceNode) {
         sourceNode = audioContext.createMediaElementSource(audioElement);
         this.audioSourceNodes.set(audio.properties.elementId, sourceNode);
       }
-
       if (!sourceNode) {
         console.error('Error: sourceNode is undefined for', audio.properties.elementId);
         return;
       }
-
       sourceNode.connect(mixedAudioDestination);
     });
-
-    /** 🏗️ Merge all audio into stream */
     const mixedAudioStream = mixedAudioDestination.stream;
     mixedAudioStream.getAudioTracks().forEach((track) => {
       stream.addTrack(track);
     });
-
-    /** 🎬 Create video playback */
     const video = document.createElement('video');
     video.srcObject = stream;
     video.height = canvas.height;
     video.width = canvas.width;
-
     video.play().then(() => {
       console.log('Video is playing with correctly timed audio.');
-
       const mediaRecorder = new MediaRecorder(stream);
       const chunks: Blob[] = [];
-
       mediaRecorder.ondataavailable = function (e) {
         chunks.push(e.data);
         console.log('Data available:', e.data);
       };
-
       mediaRecorder.onstop = async function () {
         const blob = new Blob(chunks, { type: 'video/webm' });
-
         if (mp4) {
           showLoading();
-
           const data = new Uint8Array(await blob.arrayBuffer());
           const ffmpeg = new FFmpeg();
           const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.2/dist/umd';
-
           await ffmpeg.load({
             coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
             wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-          });
-
+          })
           await ffmpeg.writeFile('video.webm', data);
           await ffmpeg.exec([
             '-y',
@@ -1648,12 +1751,10 @@ export class Store {
             'experimental',
             'video.mp4',
           ]);
-
           const output = await ffmpeg.readFile('video.mp4');
           const outputBlob = new Blob([output], { type: 'video/mp4' });
           const outputUrl = URL.createObjectURL(outputBlob);
           hideLoading();
-
           const a = document.createElement('a');
           a.download = 'video.mp4';
           a.href = outputUrl;
@@ -1666,23 +1767,30 @@ export class Store {
           a.click();
         }
       };
-
       mediaRecorder.start();
       setTimeout(() => {
         mediaRecorder.stop();
-      }, this.maxTime);
+      }, this.getMaxTime());
     });
   }
-
-
-
-
 
   refreshElements() {
     const store = this
     if (!store.canvas) return
     const canvas = store.canvas
     store.canvas.remove(...store.canvas.getObjects())
+    const activeScene = this.editorElements.find(
+      el => el.type === 'scene' &&
+        (el as SceneEditorElement).properties.sceneIndex === this.activeSceneIndex
+    ) as SceneEditorElement | undefined;
+    if (activeScene) {
+      console.log('Rendering active scene:', activeScene.id);
+      console.log('Scene contains elements:', activeScene.properties.elements?.length || 0);
+    } else {
+      console.log('Rendering without active scene');
+      console.log('Total elements:', this.editorElements.length);
+    }
+    console.groupEnd();
     for (let index = 0; index < store.editorElements.length; index++) {
       const element = store.editorElements[index]
       switch (element.type) {
@@ -1715,7 +1823,6 @@ export class Store {
             // @ts-ignore
             customFilter: element.properties.effect.type,
           })
-
           element.fabricObject = videoObject
           element.properties.imageObject = videoObject
           videoElement.width = 100
@@ -1861,8 +1968,6 @@ export class Store {
 
           break;
         }
-
-
         case 'svg': {
           if (!element.fabricObject) {
             fabric.loadSVGFromURL(
@@ -1961,28 +2066,274 @@ export class Store {
           })
           break
         }
+
+        case 'scene': {
+          if (element.properties.sceneIndex !== this.activeSceneIndex) {
+            break;
+          }
+          if (element.fabricObject && Array.isArray(element.fabricObject)) {
+            canvas.add(...element.fabricObject);
+          } else {
+            const sceneData = this.scenes[element.properties.sceneIndex];
+            const parts: fabric.Object[] = [];
+            let loaded = 0;
+            const total = sceneData.backgrounds.length + sceneData.gifs.length;
+            const { x, y, width, height } = element.placement;
+            const onPartLoaded = () => {
+              if (++loaded === total) {
+                element.fabricObject = parts as any;
+                canvas.requestRenderAll();
+              }
+            };
+            sceneData.backgrounds.forEach((bg, i) => {
+              fabric.Image.fromURL(bg.background_url, img => {
+                img.set({
+                  left: x,
+                  top: y,
+                  selectable: true,
+                  name: `BG ${i + 1}`,
+                });
+                if (i === 0) {
+                  img.scaleToWidth(width);
+                  img.scaleToHeight(height);
+                } else {
+                  img.scaleToWidth(width * 0.3);
+                  img.scaleToHeight(height * 0.3);
+                }
+                parts.push(img);
+                canvas.add(img);
+                onPartLoaded();
+              });
+            });
+            sceneData.gifs.forEach((gif, i) => {
+              const url = gif.svg_url.toLowerCase();
+              const handle = (obj: fabric.Object) => {
+                obj.set({
+                  left: x,
+                  top: y,
+                  selectable: true,
+                  name: `GIF ${i + 1}`,
+                });
+                obj.scaleToWidth(width * 0.3);
+                obj.scaleToHeight(height * 0.3);
+                parts.push(obj);
+                canvas.add(obj);
+                onPartLoaded();
+              };
+
+              if (url.endsWith('.svg')) {
+                fabric.loadSVGFromURL(url, (objs, opts) =>
+                  handle(fabric.util.groupSVGElements(objs, opts)));
+              } else {
+                fabric.Image.fromURL(url, img => handle(img));
+              }
+            });
+          }
+          if (element.properties.elements?.length) {
+            element.properties.elements.forEach(childElement => {
+
+              if (this.currentTimeInMs >= childElement.timeFrame.start &&
+                this.currentTimeInMs <= childElement.timeFrame.end) {
+
+                switch (childElement.type) {
+                  case 'text':
+                    if (!childElement.fabricObject) {
+                      const textObject = new fabric.Textbox(childElement.properties.text, {
+                        name: childElement.id,
+                        left: childElement.placement.x,
+                        top: childElement.placement.y,
+                        width: childElement.placement.width,
+                        height: childElement.placement.height,
+                        angle: childElement.placement.rotation,
+                        fontSize: childElement.properties.fontSize,
+                        fontFamily: childElement.properties.fontFamily || 'Arial',
+                        fill: childElement.properties.textColor || '#ffffff',
+                        fontWeight: childElement.properties.fontWeight || 'normal',
+                        fontStyle: childElement.properties.fontStyle || 'normal',
+                      });
+                      childElement.fabricObject = textObject;
+                    }
+                    canvas.add(childElement.fabricObject);
+                    break;
+                  case 'image': {
+
+                    if (childElement.fabricObject) {
+                      canvas.add(childElement.fabricObject);
+                      break;
+                    }
+
+
+                    let imgElement = document.getElementById(childElement.properties.elementId) as HTMLImageElement;
+
+                    if (!imgElement) {
+
+                      imgElement = document.createElement('img');
+                      imgElement.id = childElement.properties.elementId;
+                      imgElement.src = childElement.properties.src;
+                      imgElement.crossOrigin = 'anonymous';
+                      imgElement.style.display = 'none';
+                      document.body.appendChild(imgElement);
+                    }
+
+
+                    const onImageLoad = () => {
+
+                      if (childElement.fabricObject) {
+                        canvas.add(childElement.fabricObject);
+                        return;
+                      }
+
+                      const imgObj = new fabric.CoverImage(imgElement, {
+                        name: childElement.id,
+                        left: childElement.placement.x,
+                        top: childElement.placement.y,
+                        width: childElement.placement.width,
+                        height: childElement.placement.height,
+                        angle: childElement.placement.rotation,
+                        selectable: true,
+                        objectCaching: false
+                      });
+
+                      childElement.fabricObject = imgObj;
+                      canvas.add(imgObj);
+                      canvas.requestRenderAll();
+                    };
+
+                    if (imgElement.complete) {
+                      onImageLoad();
+                    } else {
+                      imgElement.onload = onImageLoad;
+                    }
+                    break;
+                  }
+                  case 'video': {
+
+                    const videoEl = document.getElementById(
+                      childElement.properties.elementId
+                    ) as HTMLVideoElement | null;
+                    if (!videoEl || !isHtmlVideoElement(videoEl)) break;
+
+
+                    if (!childElement.fabricObject) {
+                      const onMeta = () => {
+
+                        const vidObj = new fabric.Image(videoEl, {
+                          name: childElement.id,
+                          left: childElement.placement.x,
+                          top: childElement.placement.y,
+                          width: childElement.placement.width,
+                          height: childElement.placement.height,
+                          objectCaching: false,
+                          selectable: true,
+                          lockUniScaling: true,
+                        });
+                        childElement.fabricObject = vidObj;
+                        canvas.add(vidObj);
+                        canvas.requestRenderAll();
+                        videoEl.removeEventListener('loadedmetadata', onMeta);
+                      };
+
+                      videoEl.addEventListener('loadedmetadata', onMeta);
+
+                      if (videoEl.readyState >= 1) onMeta();
+
+                      break;
+                    }
+
+
+                    canvas.add(childElement.fabricObject as fabric.Image);
+                    this.updateVideoElements();
+                    break;
+                  }
+
+
+
+                  case 'audio': {
+                    if (!childElement.fabricObject) {
+
+                      const audioRect = new fabric.Rect({
+                        name: childElement.id,
+                        left: childElement.placement.x,
+                        top: childElement.placement.y,
+                        width: childElement.placement.width,
+                        height: childElement.placement.height,
+                        fill: 'rgba(50, 100, 200, 0.3)',
+                        stroke: 'blue',
+                        strokeWidth: 2,
+                        selectable: true,
+                      });
+                      childElement.fabricObject = audioRect;
+                    }
+                    if (childElement.fabricObject) {
+                      canvas.add(childElement.fabricObject);
+                      this.updateAudioElements();
+                    }
+                    break;
+                  }
+                  case 'svg': {
+                    if (!childElement.fabricObject && childElement.properties.src) {
+
+                      fabric.loadSVGFromURL(childElement.properties.src, (objects, options) => {
+                        const group = fabric.util.groupSVGElements(objects, {
+                          ...options,
+                          name: childElement.id,
+                          left: childElement.placement.x,
+                          top: childElement.placement.y,
+                          scaleX: childElement.placement.scaleX,
+                          scaleY: childElement.placement.scaleY,
+                          angle: childElement.placement.rotation,
+                          selectable: true,
+                        });
+                        childElement.fabricObject = group;
+                        canvas.add(group);
+                        canvas.requestRenderAll();
+                      });
+                    } else if (childElement.fabricObject) {
+                      canvas.add(childElement.fabricObject);
+                    }
+                    break;
+                  }
+                }
+              }
+            });
+          }
+          break;
+        }
         default: {
           throw new Error('Not implemented')
         }
       }
+
       if (element.fabricObject) {
-        element.fabricObject.on('selected', function (e) {
-          store.setSelectedElement(element)
-        })
+        const fObj = element.fabricObject;
 
-        // #to enable this for z-index wise show the layers in the canvas
-
-        // canvas.add(element.fabricObject);
-        // element.fabricObject.moveTo(index);
+        if (Array.isArray(fObj)) {
+          fObj.forEach(obj => {
+            obj.off('selected');
+            obj.on('selected', () => {
+              store.setSelectedElement(element);
+            });
+          });
+        } else {
+          fObj.off('selected');
+          fObj.on('selected', () => {
+            store.setSelectedElement(element);
+          });
+        }
       }
     }
-    const selectedEditorElement = store.selectedElement
-    if (selectedEditorElement && selectedEditorElement.fabricObject) {
-      canvas.setActiveObject(selectedEditorElement.fabricObject)
+    if (store.selectedElement?.fabricObject) {
+      const fabricObject = store.selectedElement.fabricObject;
+      if (Array.isArray(fabricObject)) {
+        canvas.setActiveObject(fabricObject[0]);
+      } else {
+        canvas.setActiveObject(fabricObject);
+      }
+      canvas.requestRenderAll();
     }
-    this.refreshAnimations()
-    this.updateTimeTo(this.currentTimeInMs)
-    store.canvas.renderAll()
+    this.refreshAnimations();
+    this.updateTimeTo(this.currentTimeInMs);
+    canvas.requestRenderAll();
   }
 }
 
@@ -1996,19 +2347,21 @@ export function isEditorVideoElement(
 ): element is VideoEditorElement {
   return element.type === 'video'
 }
-
 export function isEditorImageElement(
   element: EditorElement
 ): element is ImageEditorElement {
   return element.type === 'image'
 }
-
 export function isEditorSvgElement(
   element: EditorElement
 ): element is SvgEditorElement {
   return element.type === 'svg'
 }
-
+export function isEditorSceneElement(
+  element: EditorElement
+): element is SceneEditorElement {
+  return element.type === 'scene'
+}
 function getTextObjectsPartitionedByCharacters(
   textObject: fabric.Text,
   element: TextEditorElement

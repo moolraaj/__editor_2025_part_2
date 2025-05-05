@@ -1,14 +1,33 @@
-
 'use client';
 
-import React from 'react';
+import React, { useContext } from 'react';
 import { FaTimes } from 'react-icons/fa';
 import { API_URL } from '@/utils/constants';
-import { StoryLinePayload } from '@/types';
+import { StoreContext } from '@/store';
+
+interface SvgAsset {
+  tags: string[];
+  svg_url: string;
+}
+
+interface BackgroundAsset {
+  name: string;
+  background_url: string;
+}
+
+interface AnimationAsset {
+  name: string;
+}
+
+interface ScenePayload {
+  svgs: SvgAsset[];
+  backgrounds: BackgroundAsset[];
+  animations: AnimationAsset[];
+}
 
 interface StoryLineResultsProps {
   showResultPopup: boolean;
-  payloads: StoryLinePayload[];
+  payloads: ScenePayload[];
   sentences: string[];
   setShowResultPopup: (open: boolean) => void;
 }
@@ -19,6 +38,8 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   sentences,
   setShowResultPopup,
 }) => {
+  const store = useContext(StoreContext);
+
   if (!showResultPopup) return null;
 
   const download = async (path: string, filename: string) => {
@@ -46,6 +67,20 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
     }
   };
 
+  const handleAddToCanvas = () => {
+    payloads.forEach((scenePayload) => {
+      store.addSceneResource({
+        backgrounds: scenePayload.backgrounds,
+        gifs: scenePayload.svgs,
+        animations: scenePayload.animations,
+        elements: []
+      });
+    });
+    store.refreshElements();
+    setShowResultPopup(false);
+  };
+
+
   return (
     <div className="popup_overlay">
       <div className="popup_content">
@@ -57,48 +92,78 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
         </button>
 
         <div className="st_line_wrap_outer">
-          {payloads.map((payload, idx) => (
-            <div key={idx} className="st_wrapper_inner">
-              <h3>
-                {payload.is_default ? 'Default Scene' : 'Scene'} {idx + 1}
-              </h3>
-              {payload.gifs.length > 0 && (
-                <div className="char_type">
-                  {payload.gifs.map((gif) => (
-                    <div key={gif.id} className="svg_type_img">
-                      <img src={gif.gif_url} alt={gif.tags[0] || 'gif'} />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
+          {payloads.map((payload, sceneIdx) => {
+            const hasAny =
+              payload.svgs.length > 0 ||
+              payload.backgrounds.length > 0 ||
+              payload.animations.length > 0;
+
+            return (
+              <div key={sceneIdx} className="st_wrapper_inner">
+                <h3>Scene {sceneIdx + 1}</h3>
+
+                {!hasAny ? (
+                  <p className="text-sm text-gray-500">
+                    No matching data found for this scene.
+                  </p>
+                ) : (
+                  <>
+                    {/* {payload.svgs.length > 0 && (
+                      <div className="char_type">
+                        {payload.svgs.map((svg, i) => (
+                          <div key={i} className="svg_type_img">
+                            <img src={svg.svg_url} alt={svg.tags.join(', ')} />
+                          </div>
+                        ))}
+                      </div>
+                    )} */}
+
+                    {payload.backgrounds.length > 0 && (
+                      <div className="background_type mt-4 grid grid-cols-2 gap-2">
+                        {payload.backgrounds.map((bg, i) => (
+                          <div key={i} className="w-full h-40 object-cover rounded overflow-hidden">
+                            <img
+                              src={bg.background_url}
+                              alt={bg.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* {payload.animations.length > 0 && (
+                      <div className="animation_type mt-2">
+                        <strong>Animations:</strong>{' '}
+                        {payload.animations.map((anim, i) => (
+                          <span key={i} className="mr-2">
+                            {anim.name}
+                          </span>
+                        ))}
+                      </div>
+                    )} */}
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         <div className="st_line_buttons_outer">
-          <div className="st_line_buttons_inner">
+          <div className="st_line_buttons_inner space-x-2">
             <button
               className="buttons"
-              onClick={() =>
-                download('/download-scenes-pdf', 'scenes.pdf')
-              }
+              onClick={() => download('/download-scenes-pdf', 'scenes.pdf')}
             >
               Download as PDF
             </button>
             <button
               className="buttons"
-              onClick={() =>
-                download('/download-all-images', 'all_images.zip')
-              }
+              onClick={() => download('/download-all-images', 'all_images.zip')}
             >
               Download All Images
             </button>
-            <button
-              className="buttons"
-              onClick={() => {
-               
-              }}
-            >
+            <button className="buttons" onClick={handleAddToCanvas}>
               Add To Canvas
             </button>
           </div>

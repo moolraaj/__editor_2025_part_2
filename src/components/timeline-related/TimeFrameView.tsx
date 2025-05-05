@@ -76,6 +76,8 @@ export const TimeFrameView = observer((props: { element: EditorElement }) => {
     };
   }, [store]);
 
+  let scene = element.type === 'scene'
+
   return (
     <div
       onClick={() => {
@@ -124,7 +126,9 @@ export const TimeFrameView = observer((props: { element: EditorElement }) => {
         >
           {element.name}
 
-          {isShow && (
+
+
+          {!scene && isShow && (
             <div ref={dropdownRef} className="layers_w" onClick={(e) => e.stopPropagation()}>
               <button
                 onClick={() => {
@@ -177,11 +181,12 @@ export const TimeFrameView = observer((props: { element: EditorElement }) => {
 
 
 
-          <div className="button_l_w">
+          {!scene && <div className="button_l_w">
             <button onClick={() => setIsShow(!isShow)}>
               <FaEllipsisV />
             </button>
-          </div>
+          </div>}
+
 
 
         </div>

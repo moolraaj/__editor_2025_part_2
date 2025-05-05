@@ -1,3 +1,5 @@
+ 
+
 export const ALL_FONTS: string[] = [
   "Arial",
   "Verdana",
@@ -101,6 +103,9 @@ export const canvasBackgroundColor = [
   "#66CC99", // Light Green
   "#FFFF00", // Yellow
 ];
+
+
+ 
 
 
  

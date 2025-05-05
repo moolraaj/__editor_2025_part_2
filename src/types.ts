@@ -2,7 +2,7 @@ import { fabric } from "fabric";
 
 export type EditorElementBase<T extends string, P> = {
   readonly id: string;
-  fabricObject?: fabric.Object;
+  fabricObject?: fabric.Object | undefined;
   name: string;
   readonly type: T;
   placement: Placement;
@@ -39,13 +39,36 @@ export type SvgEditorElement = EditorElementBase<
   { src: string; elementId: string; animationType?: string }
 >;
 
+export interface SceneBackground {
+  background_url: string;
+}
+
+export interface SceneGif {
+  svg_url: string;
+}
+
+export interface SceneAnimation {
+  name: string;
+}
+
+
+ 
+export type SceneEditorElement = EditorElementBase<'scene', {
+  sceneIndex: number;
+  backgrounds: SceneBackground[];
+  gifs: SceneGif[];
+  animations: SceneAnimation[];
+  elements: EditorElement[];
+}>;
+
 
 export type EditorElement =
   | VideoEditorElement
   | ImageEditorElement
   | AudioEditorElement
   | TextEditorElement
-  | SvgEditorElement;
+  | SvgEditorElement
+  | SceneEditorElement
 
 export type Placement = {
   x: number;
@@ -143,9 +166,20 @@ interface Background {
 }
 
 export interface StoryLinePayload {
-  is_default: boolean;            
+  is_default: boolean;
   keywords: string[];
   animations: AnimationTypes[];
   backgrounds: Background[];
   gifs: GifResult[];
 }
+
+export interface Scene {
+  backgrounds: { background_url: string }[];
+  gifs: { svg_url: string }[];
+  animations: { name: string }[];
+  elements: EditorElement[];
+}
+
+
+
+
