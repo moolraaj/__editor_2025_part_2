@@ -171,10 +171,11 @@ span.active_rounder {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 30px;
+  left: 30px!important;
   width: 5px;
   background-color: #4caf50;
   z-index: 0;
+  
 }
 
 button.scene_button {
