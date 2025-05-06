@@ -46,7 +46,7 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
     try {
       const res = await fetch(`${API_URL}${path}`, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ texts: sentences }),
       });
       if (!res.ok) {
@@ -100,15 +100,18 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
 
             return (
               <div key={sceneIdx} className="st_wrapper_inner">
+                <div className="heading">
                 <h3>Scene {sceneIdx + 1}</h3>
+                </div>
 
+                <div className="content">
                 {!hasAny ? (
                   <p className="text-sm text-gray-500">
                     No matching data found for this scene.
                   </p>
                 ) : (
                   <>
-                    {/* {payload.svgs.length > 0 && (
+                    {payload.svgs.length > 0 && (
                       <div className="char_type">
                         {payload.svgs.map((svg, i) => (
                           <div key={i} className="svg_type_img">
@@ -116,12 +119,12 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
                           </div>
                         ))}
                       </div>
-                    )} */}
+                    )}
 
                     {payload.backgrounds.length > 0 && (
                       <div className="background_type mt-4 grid grid-cols-2 gap-2">
                         {payload.backgrounds.map((bg, i) => (
-                          <div key={i} className="w-full h-40 object-cover rounded overflow-hidden">
+                          <div key={i} className="w-full h-3 object-cover   overflow-hidden">
                             <img
                               src={bg.background_url}
                               alt={bg.name}
@@ -132,7 +135,7 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
                       </div>
                     )}
 
-                    {/* {payload.animations.length > 0 && (
+                    {payload.animations.length > 0 && (
                       <div className="animation_type mt-2">
                         <strong>Animations:</strong>{' '}
                         {payload.animations.map((anim, i) => (
@@ -141,9 +144,14 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
                           </span>
                         ))}
                       </div>
-                    )} */}
+                    )}
                   </>
                 )}
+
+                </div>
+
+
+
               </div>
             );
           })}
