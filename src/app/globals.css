@@ -138,6 +138,18 @@ span.active_rounder {
   width: 100%;
 }
 
+.popup-close-button {
+  position: absolute;
+  right: 18px;
+  top: 22px;
+}
+h3.popup-title {
+  padding-left: 29px;
+  font-size: 22px;
+  color: #bbbaba;
+  font-weight: 600;
+}
+
 .popup-container {
   max-width: 1000px;
   margin: auto;
@@ -145,7 +157,7 @@ span.active_rounder {
   padding: 40px;
   position: relative;
   color: #fff;
-  height: 650px;
+  height: 700px;
   overflow-y: scroll;
   width: 100%;
 }
@@ -170,7 +182,7 @@ span.active_rounder {
   content: "";
   position: absolute;
   top: 0;
-  bottom: 0;
+  bottom: 0!important;
   left: 30px!important;
   width: 5px;
   background-color: #4caf50;
@@ -192,6 +204,7 @@ button.scene_button {
   display: grid;
   padding: 0px 0px 0px 12px;
   gap: 12px;
+  height: 104px;
 }
 
 

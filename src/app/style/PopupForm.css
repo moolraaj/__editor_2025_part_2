@@ -168,16 +168,7 @@
   font-family: sans-serif;
 }
 
-.close-button {
-  position: absolute;
-  top: 6px;
-  right: 26px;
-  background: none;
-  border: none;
-  color: #fff;
-  font-size: 24px;
-  cursor: pointer;
-}
+ 
 
 .fields {
   position: relative;
