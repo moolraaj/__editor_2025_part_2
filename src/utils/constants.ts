@@ -1,4 +1,5 @@
- 
+export const GLOBAL_ELEMENTS_TIME=30 
+export const SCENE_ELEMENTS_TIME=10 
 
 export const ALL_FONTS: string[] = [
   "Arial",

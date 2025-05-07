@@ -26,7 +26,7 @@ import { FabricUitls } from '@/utils/fabric-utils'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { toBlobURL } from '@ffmpeg/util'
 import { handstandAnimation, walkingAnimations } from '@/utils/animations'
-import { HANDSTAND, hideLoading, showLoading, WALKING } from '@/utils/constants'
+import { GLOBAL_ELEMENTS_TIME, HANDSTAND, hideLoading, SCENE_ELEMENTS_TIME, showLoading, WALKING } from '@/utils/constants'
 export class Store {
   canvas: fabric.Canvas | null
   backgroundColor: string
@@ -74,10 +74,12 @@ export class Store {
   }
   getMaxTime() {
     if (this.scenes.length > 0) {
-      return this.scenes.length * 10 * 1000;
+      return this.scenes.length * SCENE_ELEMENTS_TIME * 1000;
     }
-    return 30 * 1000;
+    return GLOBAL_ELEMENTS_TIME * 1000;
   }
+ 
+
   setActiveScene(index: number) {
     this.activeSceneIndex = index;
     this.refreshElements();

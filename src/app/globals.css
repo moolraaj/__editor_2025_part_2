@@ -24,11 +24,11 @@ body {
 
 .st_line_wrap_outer {
   display: grid;
-  grid-template-columns: repeat(3,1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 20px;
 }
 
- 
+
 
 .svg_type_img img {
   width: 100%;
@@ -59,7 +59,7 @@ body {
   margin-top: 30px;
 }
 
- 
+
 
 
 
@@ -91,6 +91,7 @@ body {
   width: 90%;
   max-width: 800px;
 }
+
 .popup_content svg {
   color: white;
   position: absolute;
@@ -102,7 +103,7 @@ body {
   padding: 15px 0px 0px 0px;
   font-size: 16px;
   font-weight: 600;
-  text-transform:capitalize
+  text-transform: capitalize
 }
 
 span.active_rounder {
@@ -119,11 +120,14 @@ span.active_rounder {
   width: 100%;
   height: 100px;
 }
+
 .scene_outer_wrapper {
   position: relative;
   cursor: pointer;
   border: 2px solid #fff !important;
+  height: 104px;
 }
+
 .popup-overlay {
   position: fixed;
   width: 100%;
@@ -143,6 +147,7 @@ span.active_rounder {
   right: 18px;
   top: 22px;
 }
+
 h3.popup-title {
   padding-left: 29px;
   font-size: 22px;
@@ -161,12 +166,18 @@ h3.popup-title {
   overflow-y: scroll;
   width: 100%;
 }
+
 #active_scene {
-  border: 2px solid rgb(59 130 246)!important;
+  border: 2px solid rgb(37 99 235)!important;
 }
+
 .scene_outer_wrapper img {
   object-fit: cover;
-  height: 70px;
+  height: 100px;
+}
+
+h3.text-green {
+  color: rgb(37 99 235);
 }
 
 .scene_name {
@@ -178,16 +189,17 @@ h3.popup-title {
   border-radius: 4px;
   font-size: 12px;
 }
+
 .popup-container:before {
   content: "";
   position: absolute;
   top: 0;
-  bottom: 0!important;
-  left: 30px!important;
+  bottom: 0 !important;
+  left: 30px !important;
   width: 5px;
   background-color: #4caf50;
   z-index: 0;
-  
+
 }
 
 button.scene_button {
@@ -204,9 +216,8 @@ button.scene_button {
   display: grid;
   padding: 0px 0px 0px 12px;
   gap: 12px;
-  height: 104px;
-}
 
+}
 
 
 .popup_close {
@@ -219,7 +230,8 @@ button.scene_button {
   cursor: pointer;
 }
 
-.add_button, .search_button {
+.add_button,
+.search_button {
   margin-top: 1rem;
   padding: 0.4rem 0.8rem;
 }
@@ -281,10 +293,10 @@ body {
   flex-direction: column;
   right: 32px;
   z-index: 999999;
-  
+
 }
 
- 
+
 div#ruler_scale_drag::before {
   content: "";
   position: absolute;
@@ -310,12 +322,12 @@ div#ruler_scale_drag::before {
 
 
 .overflow-scroll::-webkit-scrollbar {
- 
+
   background-color: rgb(30, 41, 59);
 }
 
 .overflow-scroll::-webkit-scrollbar-thumb {
- 
+
   background-color: rgb(22, 30, 43);
 
 }
@@ -333,6 +345,7 @@ div#ruler_scale_drag::before {
   border-radius: 4px;
   position: relative;
 }
+
 .text-holder {
   display: flex;
   flex-direction: column;
@@ -341,16 +354,18 @@ div#ruler_scale_drag::before {
   gap: 8px;
 }
 
- 
+
 
 .text-holder label {
   color: #fff;
 }
+
 .text-holder:nth-child(2) {
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: center;
 }
+
 .text-holder input {
   width: 100%;
 }
@@ -361,7 +376,7 @@ div#ruler_scale_drag::before {
   top: 14px;
   color: #fff;
   font-weight: bold;
-} 
+}
 
 .text-right {
   text-align: right;
@@ -370,27 +385,32 @@ div#ruler_scale_drag::before {
   margin-top: 26px;
   gap: 8px;
 }
+
 .text-right button {
   background: rgb(14 14 14);
   width: 100%;
   color: #fff;
   border-radius: 4px;
 }
+
 .text_left {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
+
 .elements_holder {
   border-bottom: 1px solid #ffffff36;
   margin: 0px;
   padding: 6px;
   cursor: pointer;
 }
+
 .video_flex_wrapper {
   margin: 20px 0px 0px 0px;
   display: flex;
-} 
+}
+
 .upload_button {
   margin-top: 20px;
 }

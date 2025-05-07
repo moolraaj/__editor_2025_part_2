@@ -5,13 +5,13 @@ import { StoreContext } from "@/store";
 import { SeekPlayer } from "./timeline-related/SeekPlayer";
 import { TimeFrameView } from "./timeline-related/TimeFrameView";
 import type { SceneEditorElement } from "@/types";
-import type { fabric } from "fabric";
 
 export const TimeLine: React.FC = observer(() => {
   const store = useContext(StoreContext);
   const nowPct = (store.currentTimeInMs / store.maxTime) * 100;
   const [expandedScene, setExpandedScene] = useState<number | null>(null);
 
+ 
   useEffect(() => {
     const sceneCount = store.scenes.length;
     if (sceneCount === 0) return;
@@ -31,26 +31,34 @@ export const TimeLine: React.FC = observer(() => {
     }
   }, [store.currentTimeInMs, store.scenes.length, store.maxTime]);
 
+ 
+  useEffect(() => {
+    if (store.scenes.length > 0) {
+      setExpandedScene(store.scenes.length - 1);
+    }
+  }, [store.scenes.length]);
+
   const handleSceneClick = (idx: number, sceneElem: SceneEditorElement) => {
     store.setActiveScene(idx);
     store.setSelectedElement(sceneElem);
   };
 
+ 
   const renderSceneLayers = (sceneElem: SceneEditorElement, idx: number) => {
-    const layers = Array.isArray(sceneElem.fabricObject)
-      ? (sceneElem.fabricObject as fabric.Object[])
-      : [];
+   
     const isOpen = expandedScene === idx;
     const isActive = store.activeSceneIndex === idx;
 
     return (
       <div
         key={sceneElem.id}
-        className={`bg-gray-800 rounded-lg p-4 ${isActive ? "ring-2 ring-blue-500" : ""}`}
+        className={`bg-gray-800  p-2 ${
+          isActive ? "ring-2 ring-blue-500" : ""
+        }`}
         onClick={() => handleSceneClick(idx, sceneElem)}
       >
         <div className="flex justify-between items-center mb-2">
-          <h3 className="text-white font-semibold">
+          <h3 className={`${isActive?'text-green':''} text-white font-semibold`}>
             Scene {idx + 1} {isActive && "(Active)"}
           </h3>
           <button
@@ -60,87 +68,40 @@ export const TimeLine: React.FC = observer(() => {
               setExpandedScene(isOpen ? null : idx);
             }}
           >
-            {isOpen ? "Hide Layers" : "Show Layers"}
+     
           </button>
         </div>
 
         <TimeFrameView element={sceneElem} />
 
-        {isOpen && (
-          <div className="space-y-4">
-            <div className="flex flex-col gap-1 mt-2">
-              {layers.map((layer, i) => (
-                <div
-                  key={i}
-                  className="flex items-center px-2 py-1 bg-gray-700 rounded cursor-pointer hover:bg-gray-600 text-xs"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    // If clicking a layer of a non-active scene, activate it
-                    if (store.activeSceneIndex !== idx) {
-                      store.setActiveScene(idx);
-                    }
-                    store.setSelectedElement(sceneElem);
-                    if (store.canvas) {
-                      store.canvas.setActiveObject(layer);
-                      store.canvas.requestRenderAll();
-                    }
-                  }}
-                >
-                  <span className="truncate flex-1 text-white">
-                    {layer.name || `Layer ${i + 1}`}
-                  </span>
-                  <span className="text-gray-400 text-xs ml-2">
-                    {layer.type}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {sceneElem.properties.elements?.length ? (
-          <div className="flex flex-col gap-1 mt-2">
-            {sceneElem.properties.elements.map((el, i) => (
-              <div
-                key={`child-${i}`}
-                className="flex items-center px-2 py-1 bg-gray-700 rounded cursor-pointer hover:bg-gray-600 text-xs"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  // Activate scene if not active
-                  if (store.activeSceneIndex !== idx) {
-                    store.setActiveScene(idx);
-                  }
-                  store.setSelectedElement(el);
-                  if (store.canvas && el.fabricObject) {
-                    store.canvas.setActiveObject(
-                      Array.isArray(el.fabricObject)
-                        ? el.fabricObject[0]
-                        : el.fabricObject
-                    );
-                    store.canvas.requestRenderAll();
-                  }
-                }}
-              >
-                <span className="truncate flex-1 text-white">
-                  {el.name || `${el.type}-${i + 1}`}
-                </span>
-                <span className="text-gray-400 text-xs ml-2">{el.type}</span>
-              </div>
-            ))}
-          </div>
-        ) : null}
+      
       </div>
     );
   };
 
+ 
+  const totalTime      = store.maxTime;            
+  const sceneCount     = store.scenes.length;     
+  const perSceneLength = sceneCount > 0 
+    ? totalTime / sceneCount 
+    : totalTime;     
+
   return (
     <div className="flex flex-col space-y-6">
       <SeekPlayer />
+
+    
       <div
-        className="flex-1 relative space-y-6"
+        className="relative h-48"
         onDragOver={(e) => e.preventDefault()}
       >
-        {store.scenes.map((scene, idx) => {
+        {store.scenes.map((_, idx) => {
+     
+          const sceneStart    = idx * perSceneLength;
+          const sceneDuration = perSceneLength;
+          const leftPct  = (sceneStart  / totalTime) * 100;
+          const widthPct = (sceneDuration / totalTime) * 100;
+
           const sceneElem = store.editorElements.find(
             (e) =>
               e.type === "scene" &&
@@ -152,9 +113,22 @@ export const TimeLine: React.FC = observer(() => {
             return null;
           }
 
-          return renderSceneLayers(sceneElem, idx);
+       
+          return (
+            <div
+              key={sceneElem.id}
+              className="absolute top-0"
+              style={{
+                left:  `${leftPct}%`,
+                width: `${widthPct}%`,
+              }}
+            >
+              {renderSceneLayers(sceneElem, idx)}
+            </div>
+          );
         })}
 
+    
         {store.editorElements.filter((e) => e.type !== "scene").length > 0 && (
           <div className="space-y-4">
             {store.editorElements
@@ -172,6 +146,7 @@ export const TimeLine: React.FC = observer(() => {
           </div>
         )}
 
+        
         <div
           className="w-[2px] bg-[#f87171] absolute top-0 bottom-0 z-20"
           style={{ left: `${nowPct}%` }}
@@ -180,5 +155,3 @@ export const TimeLine: React.FC = observer(() => {
     </div>
   );
 });
-
- 
