@@ -41,6 +41,8 @@ export type SvgEditorElement = EditorElementBase<
 
 export interface SceneBackground {
   background_url: string;
+  
+  
 }
 
 export interface SceneGif {
@@ -59,6 +61,7 @@ export type SceneEditorElement = EditorElementBase<'scene', {
   gifs: SceneGif[];
   animations: SceneAnimation[];
   elements: EditorElement[];
+ 
 }>;
 
 
@@ -80,10 +83,7 @@ export type Placement = {
   scaleY: number;
 };
 
-export type TimeFrame = {
-  start: number;
-  end: number;
-};
+ 
 
 export type EffectBase<T extends string> = {
   type: T;
@@ -145,24 +145,29 @@ export type MenuOption =
 export interface GifResult {
   id: string;
   tags: string[];
-  animation_type_id: string;
-  background_id: string;
-  gif_url: string;
+  gif_url: string
+ 
 
-  similarity?: number;
+}
 
+export interface TimeFrame {
+  start: number;
+  end: number;
 }
 
 export interface AnimationTypes {
   id: string;
   name: string;
   gif_url?: string;
+  timeFrame: TimeFrame;
+  
 }
 
 interface Background {
   id: string;
   name: string;
   background_url: string;
+  timeFrame: TimeFrame;
 }
 
 export interface StoryLinePayload {
@@ -180,6 +185,37 @@ export interface Scene {
   elements: EditorElement[];
 }
 
+export interface SceneLayer {
+  id: string;
+  layerType: 'background' | 'svg' | 'animation' | 'element';
+  name?: string;
+  timeFrame: TimeFrame;
+  fabricObject?: fabric.Object | fabric.Object[];
+  [key: string]: any;
+}
 
 
+
+export interface SceneGif extends SceneLayer {
+  svg_url: string;
+  tags?: string[];
+}
+
+export interface SceneBackground extends SceneLayer {
+  background_url: string;
+  name?: string;
+}
+
+export interface SceneAnimation extends SceneLayer {
+  name: string;
+  gif_url?: string;
+}
+
+export interface SceneElement extends SceneLayer {
+  name: string;
+}
+
+
+
+ 
 

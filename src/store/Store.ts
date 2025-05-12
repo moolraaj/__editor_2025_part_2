@@ -21,6 +21,10 @@ import {
   SvgEditorElement,
   SceneEditorElement,
   Scene,
+  SceneLayer,
+  SceneBackground,
+  SceneGif,
+  SceneAnimation,
 } from '../types'
 import { FabricUitls } from '@/utils/fabric-utils'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
@@ -35,6 +39,7 @@ export class Store {
   videos: string[]
   images: string[]
   svgs: string[]
+  scenes: Scene[] = [];
   editorElements: EditorElement[]
   selectedElement: EditorElement | null
   maxTime: number
@@ -50,7 +55,6 @@ export class Store {
   copiedElement: EditorElement | null = null
   currentAnimations: anime.AnimeInstance[] = []
   showStorylinePopup = false;
-  scenes: Scene[] = [];
   activeSceneIndex: number = 0;
 
   constructor() {
@@ -78,41 +82,78 @@ export class Store {
     }
     return GLOBAL_ELEMENTS_TIME * 1000;
   }
- 
+
 
   setActiveScene(index: number) {
     this.activeSceneIndex = index;
     this.refreshElements();
   }
   addSceneResource(scene: Scene) {
-    console.log("[store] before:", this.scenes.length);
-    this.scenes.push(scene);
-    console.log("[store] after:", this.scenes.length);
+    const sceneDuration = SCENE_ELEMENTS_TIME * 1000;
+    const idx = this.scenes.length;
+    const sceneStart = idx * sceneDuration;
+    const sceneEnd = sceneStart + sceneDuration;
+
+
+    const processedScene: Scene & { timeFrame: TimeFrame } & {
+      backgrounds: (SceneLayer & { timeFrame: TimeFrame })[];
+      gifs: (SceneLayer & { timeFrame: TimeFrame })[];
+      animations: (SceneLayer & { timeFrame: TimeFrame })[];
+      elements: (SceneLayer & { timeFrame: TimeFrame })[];
+    } = {
+      ...scene,
+      timeFrame: { start: sceneStart, end: sceneEnd },
+      backgrounds: scene.backgrounds.map((bg, i) => ({
+        ...bg,
+        id: `bg-${idx}-${i}`,
+        layerType: 'background',
+        timeFrame: { start: sceneStart, end: sceneEnd }
+      })),
+      gifs: scene.gifs.map((gif, i) => ({
+        ...gif,
+        id: `gif-${idx}-${i}`,
+        layerType: 'svg',
+        timeFrame: { start: sceneStart, end: sceneEnd }
+      })),
+      animations: scene.animations.map((anim, i) => ({
+        ...anim,
+        id: `anim-${idx}-${i}`,
+        layerType: 'animation',
+        timeFrame: { start: sceneStart, end: sceneEnd }
+      })),
+      elements: scene.elements.map((el, i) => ({
+        ...el,
+        layerType: 'element',
+        id: `elem-${idx}-${i}`,
+        timeFrame: { start: sceneStart, end: sceneEnd }
+      })),
+    };
+
+
+    this.scenes.push(processedScene);
     this.maxTime = this.getMaxTime();
-    const idx = this.scenes.length - 1;
-    const sceneStart = idx * 10 * 1000;
-    const sceneEnd = (idx + 1) * 10 * 1000;
+
+
     const sceneElem: SceneEditorElement = {
       id: `scene-${idx}`,
       name: `Scene ${idx + 1}`,
       type: 'scene',
       placement: { x: 0, y: 0, width: this.canvas?.width || 800, height: this.canvas?.height || 600, rotation: 0, scaleX: 1, scaleY: 1 },
-      timeFrame: {
-        start: sceneStart,
-        end: sceneEnd
-      },
+      timeFrame: { start: sceneStart, end: sceneEnd },
       properties: {
         sceneIndex: idx,
-        backgrounds: scene.backgrounds,
-        gifs: scene.gifs,
-        animations: scene.animations,
-        elements: scene.elements
+        backgrounds: processedScene.backgrounds as SceneBackground[],
+        gifs: processedScene.gifs as SceneGif[],
+        animations: processedScene.animations as SceneAnimation[],
+        elements: processedScene.elements as EditorElement[],
       },
       fabricObject: undefined,
     };
     this.editorElements.push(sceneElem);
+
     this.refreshAnimations();
   }
+
 
   setShowStorylinePopup(value: boolean) {
     this.showStorylinePopup = value;
@@ -774,8 +815,73 @@ export class Store {
     this.refreshAnimations()
   }
 
+
+
+  updateSceneLayerTimeFrame(
+    sceneIndex: number,
+    layerId: string,
+    timeFrame: Partial<TimeFrame>
+  ) {
+    const scene = this.scenes[sceneIndex] as Scene & { timeFrame: TimeFrame };
+    if (!scene) return;
+
+    const { start: sceneStart, end: sceneEnd } = scene.timeFrame;
+
+    if (timeFrame.start != null && timeFrame.start < sceneStart) {
+      timeFrame.start = sceneStart;
+    }
+    if (timeFrame.end != null && timeFrame.end > sceneEnd) {
+      timeFrame.end = sceneEnd;
+    }
+
+    // Narrow the types to satisfy the expected { id, timeFrame }
+    const tryUpdate = <T extends { id: string; timeFrame: TimeFrame }>(
+      arr: T[] | undefined
+    ): boolean => {
+      if (!arr) return false;
+      const idx = arr.findIndex(l => l.id === layerId);
+      if (idx >= 0) {
+        arr[idx] = {
+          ...arr[idx],
+          timeFrame: {
+            ...arr[idx].timeFrame,
+            ...timeFrame
+          }
+        };
+        return true;
+      }
+      return false;
+    };
+
+    if (
+      tryUpdate(scene.backgrounds as any) ||
+      tryUpdate(scene.gifs as any) ||
+      tryUpdate(scene.animations as any) ||
+      tryUpdate(scene.elements as any)
+    ) {
+      const elem = this.editorElements.find(
+        e => e.type === 'scene' && e.properties.sceneIndex === sceneIndex
+      ) as SceneEditorElement | undefined;
+
+      if (elem) {
+        const p = elem.properties as any;
+
+        tryUpdate(p.backgrounds as any) ||
+          tryUpdate(p.gifs as any) ||
+          tryUpdate(p.animations as any) ||
+          tryUpdate(p.elements as any);
+      }
+
+      this.updateVideoElements();
+      this.updateAudioElements();
+      this.refreshAnimations();
+    }
+  }
+
+
+
   addEditorElement(editorElement: EditorElement) {
-    console.log('Adding new element:', editorElement); 
+    console.log('Adding new element:', editorElement);
     const activeScene = this.editorElements.find(
       el => el.type === 'scene' &&
         (el as SceneEditorElement).properties.sceneIndex === this.activeSceneIndex
@@ -988,88 +1094,114 @@ export class Store {
 
 
 
- 
-updateTimeTo(newTime: number) {
- 
-  this.setCurrentTimeInMs(newTime);
-  this.animationTimeLine.seek(newTime);
 
- 
-  if (this.canvas) {
-    this.canvas.backgroundColor = this.backgroundColor;
+  updateTimeTo(newTime: number) {
+
+    this.setCurrentTimeInMs(newTime);
+    this.animationTimeLine.seek(newTime);
+
+
+    if (this.canvas) {
+      this.canvas.backgroundColor = this.backgroundColor;
+    }
+
+
+    let cursor = 0;
+    const sceneSegments = this.editorElements
+      .filter((e) => e.type === "scene")
+      .sort(
+        (a, b) =>
+          (a as SceneEditorElement).properties.sceneIndex -
+          (b as SceneEditorElement).properties.sceneIndex
+      )
+      .map((e) => {
+        const sc = e as SceneEditorElement;
+        const dur = sc.timeFrame.end - sc.timeFrame.start;
+        const seg = { sc, start: cursor, end: cursor + dur };
+        cursor += dur;
+        return seg;
+      });
+
+
+    sceneSegments.forEach(({ sc, start, end }) => {
+      const idx = sc.properties.sceneIndex;
+      const inPlayhead = newTime >= start && newTime <= end;
+      const isActive = idx === this.activeSceneIndex;
+      const sceneVisible = inPlayhead || isActive;
+
+
+      if (Array.isArray(sc.fabricObject)) {
+        sc.fabricObject.forEach((o) => (o.visible = sceneVisible));
+      }
+
+
+      sc.properties.elements?.forEach((child) => {
+        if (!child.fabricObject) return;
+        const relStart = child.timeFrame.start - sc.timeFrame.start;
+        const relEnd = child.timeFrame.end - sc.timeFrame.start;
+        const childGlobalStart = start + relStart;
+        const childGlobalEnd = start + relEnd;
+        const childVisible =
+          newTime >= childGlobalStart && newTime <= childGlobalEnd;
+
+        if (Array.isArray(child.fabricObject)) {
+          child.fabricObject.forEach((o) => (o.visible = childVisible));
+        } else {
+          child.fabricObject.visible = childVisible;
+        }
+      });
+    });
+
+
+    this.editorElements.forEach((el) => {
+      if (el.type !== "scene") {
+        if (!el.fabricObject) return;
+        const inRange =
+          newTime >= el.timeFrame.start && newTime <= el.timeFrame.end;
+        if (Array.isArray(el.fabricObject)) {
+          el.fabricObject.forEach((o) => (o.visible = inRange));
+        } else {
+          el.fabricObject.visible = inRange;
+        }
+      }
+    });
+
+
+    this.updateAudioElements();
+    this.updateVideoElements();
+    this.updateSvgElements();
+
+
+    this.canvas?.requestRenderAll();
   }
 
- 
-  let cursor = 0;
-  const sceneSegments = this.editorElements
-    .filter((e) => e.type === "scene")
-    .sort(
-      (a, b) =>
-        (a as SceneEditorElement).properties.sceneIndex -
-        (b as SceneEditorElement).properties.sceneIndex
-    )
-    .map((e) => {
-      const sc = e as SceneEditorElement;
-      const dur = sc.timeFrame.end - sc.timeFrame.start;
-      const seg = { sc, start: cursor, end: cursor + dur };
-      cursor += dur;
-      return seg;
-    });
+  getAllObjectsRecursively(obj: fabric.Object): fabric.Object[] {
+    let results: fabric.Object[] = [obj]
+    if (obj.type === 'group') {
+      const group = obj as fabric.Group
+      group.getObjects().forEach((child) => {
+        results = results.concat(this.getAllObjectsRecursively(child))
+      })
+    }
+    return results
+  }
 
- 
-  sceneSegments.forEach(({ sc, start, end }) => {
-    const idx = sc.properties.sceneIndex;
-    const inPlayhead = newTime >= start && newTime <= end;
-    const isActive = idx === this.activeSceneIndex;
-    const sceneVisible = inPlayhead || isActive;
 
- 
-    if (Array.isArray(sc.fabricObject)) {
-      sc.fabricObject.forEach((o) => (o.visible = sceneVisible));
+  getCurrentTimeFrame(duration?: number): TimeFrame {
+    const activeScene = this.scenes[this.activeSceneIndex] as Scene & { timeFrame: TimeFrame };
+
+    if (activeScene && activeScene.timeFrame) {
+      return {
+        start: activeScene.timeFrame.start,
+        end: activeScene.timeFrame.end
+      };
     }
 
- 
-    sc.properties.elements?.forEach((child) => {
-      if (!child.fabricObject) return;
-      const relStart = child.timeFrame.start - sc.timeFrame.start;
-      const relEnd = child.timeFrame.end - sc.timeFrame.start;
-      const childGlobalStart = start + relStart;
-      const childGlobalEnd = start + relEnd;
-      const childVisible =
-        newTime >= childGlobalStart && newTime <= childGlobalEnd;
-
-      if (Array.isArray(child.fabricObject)) {
-        child.fabricObject.forEach((o) => (o.visible = childVisible));
-      } else {
-        child.fabricObject.visible = childVisible;
-      }
-    });
-  });
-
- 
-  this.editorElements.forEach((el) => {
-    if (el.type !== "scene") {
-      if (!el.fabricObject) return;
-      const inRange =
-        newTime >= el.timeFrame.start && newTime <= el.timeFrame.end;
-      if (Array.isArray(el.fabricObject)) {
-        el.fabricObject.forEach((o) => (o.visible = inRange));
-      } else {
-        el.fabricObject.visible = inRange;
-      }
-    }
-  });
-
- 
-  this.updateAudioElements();
-  this.updateVideoElements();
-  this.updateSvgElements();
-
- 
-  this.canvas?.requestRenderAll();
-}
-
- 
+    return {
+      start: 0,
+      end: duration ?? this.maxTime
+    };
+  }
 
   handleSeek(seek: number) {
     if (this.playing) {
@@ -1101,10 +1233,7 @@ updateTimeTo(newTime: number) {
         scaleX: 1,
         scaleY: 1,
       },
-      timeFrame: {
-        start: 0,
-        end: videoDurationMs,
-      },
+      timeFrame: this.getCurrentTimeFrame(videoDurationMs),
       properties: {
         elementId: `video-${id}`,
         src: videoElement.src,
@@ -1136,10 +1265,7 @@ updateTimeTo(newTime: number) {
         scaleX: 1,
         scaleY: 1,
       },
-      timeFrame: {
-        start: 0,
-        end: this.maxTime,
-      },
+      timeFrame: this.getCurrentTimeFrame(),
       properties: {
         elementId: `image-${id}`,
         src: imageElement.src,
@@ -1309,10 +1435,7 @@ updateTimeTo(newTime: number) {
                 scaleX: fullSvgGroup.scaleX ?? 1,
                 scaleY: fullSvgGroup.scaleY ?? 1,
               },
-              timeFrame: {
-                start: 0,
-                end: this.maxTime,
-              },
+              timeFrame: this.getCurrentTimeFrame(),
               properties: {
                 elementId: `svg-${id}`,
                 src: svgElement.src,
@@ -1328,16 +1451,7 @@ updateTimeTo(newTime: number) {
       .catch((error) => console.error(' Error fetching SVG:', error))
   }
 
-  getAllObjectsRecursively(obj: fabric.Object): fabric.Object[] {
-    let results: fabric.Object[] = [obj]
-    if (obj.type === 'group') {
-      const group = obj as fabric.Group
-      group.getObjects().forEach((child) => {
-        results = results.concat(this.getAllObjectsRecursively(child))
-      })
-    }
-    return results
-  }
+
 
   addAudio(index: number) {
     const audioElement = document.getElementById(`audio-${index}`)
@@ -1359,10 +1473,7 @@ updateTimeTo(newTime: number) {
         scaleX: 1,
         scaleY: 1,
       },
-      timeFrame: {
-        start: 0,
-        end: audioDurationMs,
-      },
+      timeFrame: this.getCurrentTimeFrame(audioDurationMs),
       properties: {
         elementId: `audio-${id}`,
         src: audioElement.src,
@@ -1385,10 +1496,8 @@ updateTimeTo(newTime: number) {
         scaleX: 1,
         scaleY: 1,
       },
-      timeFrame: {
-        start: 0,
-        end: this.maxTime,
-      },
+      timeFrame: this.getCurrentTimeFrame(),
+
       properties: {
         text: options.text,
         fontSize: options.fontSize,
@@ -2082,28 +2191,28 @@ updateTimeTo(newTime: number) {
                     canvas.add(childElement.fabricObject);
                     break;
                   case 'image': {
-                   
+
                     if (childElement.fabricObject) {
                       canvas.add(childElement.fabricObject);
                       break;
                     }
 
-                  
+
                     let imgElement = document.getElementById(childElement.properties.elementId) as HTMLImageElement;
 
                     if (!imgElement) {
-                 
+
                       imgElement = document.createElement('img');
                       imgElement.id = childElement.properties.elementId;
                       imgElement.src = childElement.properties.src;
                       imgElement.crossOrigin = 'anonymous';
-                      imgElement.style.display = 'none';  
+                      imgElement.style.display = 'none';
                       document.body.appendChild(imgElement);
                     }
 
-                 
+
                     const onImageLoad = () => {
-                  
+
                       if (childElement.fabricObject) {
                         canvas.add(childElement.fabricObject);
                         return;
@@ -2133,16 +2242,16 @@ updateTimeTo(newTime: number) {
                     break;
                   }
                   case 'video': {
-                   
+
                     const videoEl = document.getElementById(
                       childElement.properties.elementId
                     ) as HTMLVideoElement | null;
                     if (!videoEl || !isHtmlVideoElement(videoEl)) break;
-                  
-               
+
+
                     if (!childElement.fabricObject) {
                       const onMeta = () => {
-                   
+
                         const vidObj = new fabric.Image(videoEl, {
                           name: childElement.id,
                           left: childElement.placement.x,
@@ -2158,21 +2267,21 @@ updateTimeTo(newTime: number) {
                         canvas.requestRenderAll();
                         videoEl.removeEventListener('loadedmetadata', onMeta);
                       };
-                  
+
                       videoEl.addEventListener('loadedmetadata', onMeta);
-                 
+
                       if (videoEl.readyState >= 1) onMeta();
-                  
-                      break;  
+
+                      break;
                     }
-                  
- 
+
+
                     canvas.add(childElement.fabricObject as fabric.Image);
                     this.updateVideoElements();
                     break;
                   }
-                  
-                  
+
+
 
                   case 'audio': {
                     if (!childElement.fabricObject) {

@@ -70,6 +70,7 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   const handleAddToCanvas = () => {
     payloads.forEach((scenePayload) => {
       store.addSceneResource({
+        
         backgrounds: scenePayload.backgrounds,
         gifs: scenePayload.svgs,
         animations: scenePayload.animations,
