@@ -915,14 +915,65 @@ export class Store {
     )
     this.refreshElements()
   }
+
+
+
+
   setMaxTime(maxTime: number) {
-    if (this.scenes.length > 0) {
-      this.maxTime = this.getMaxTime();
-    } else {
-      this.maxTime = maxTime;
+    const sceneCount = this.scenes.length;
+
+    if (sceneCount > 0) {
+      const durationPerScene = maxTime / sceneCount;
+
+      this.scenes.forEach((scene, index) => {
+        const sceneStart = index * durationPerScene;
+        const sceneEnd = sceneStart + durationPerScene;
+        //@ts-ignore
+        scene.timeFrame = { start: sceneStart, end: sceneEnd };
+
+        const updateNestedLayerTimeFrames = (layers: any[]) => {
+          layers.forEach(layer => {
+            layer.timeFrame = { start: sceneStart, end: sceneEnd };
+          });
+        };
+
+        updateNestedLayerTimeFrames(scene.backgrounds);
+        updateNestedLayerTimeFrames(scene.gifs);
+        updateNestedLayerTimeFrames(scene.animations);
+        updateNestedLayerTimeFrames(scene.elements);
+
+        // Also update scene editor element
+        const sceneEditorElement = this.editorElements.find(
+          e => e.type === 'scene' &&
+            (e as SceneEditorElement).properties.sceneIndex === index
+        );
+        if (sceneEditorElement) {
+          sceneEditorElement.timeFrame = { start: sceneStart, end: sceneEnd };
+
+          const props = (sceneEditorElement as SceneEditorElement).properties;
+          updateNestedLayerTimeFrames(props.backgrounds);
+          updateNestedLayerTimeFrames(props.gifs);
+          updateNestedLayerTimeFrames(props.animations);
+          updateNestedLayerTimeFrames(props.elements);
+        }
+      });
     }
+
+    this.maxTime = maxTime;
     this.refreshAnimations();
   }
+
+
+
+
+
+
+
+
+
+
+
+
   clearCurrentAnimations() {
     if (this.currentAnimations && this.currentAnimations.length) {
       this.currentAnimations.forEach((anim) => anim.pause());
@@ -1453,7 +1504,9 @@ export class Store {
 
 
 
-  addAudio(index: number) {
+ 
+
+   addAudio(index: number) {
     const audioElement = document.getElementById(`audio-${index}`)
     if (!isHtmlAudioElement(audioElement)) {
       return
@@ -1473,13 +1526,16 @@ export class Store {
         scaleX: 1,
         scaleY: 1,
       },
-      timeFrame: this.getCurrentTimeFrame(audioDurationMs),
+       timeFrame: this.getCurrentTimeFrame(audioDurationMs),
       properties: {
         elementId: `audio-${id}`,
         src: audioElement.src,
       },
     })
   }
+
+
+
   addText(options: { text: string; fontSize: number; fontWeight: number }) {
     const id = getUid()
     const index = this.editorElements.length
@@ -1546,7 +1602,7 @@ export class Store {
       })
   }
 
-  updateAudioElements() {
+ updateAudioElements() {
     this.editorElements
       .filter(
         (element): element is AudioEditorElement => element.type === 'audio'
@@ -1560,6 +1616,7 @@ export class Store {
         const { start, end } = element.timeFrame
         const currentTimeMs = this.currentTimeInMs
         const isWithinRange = currentTimeMs >= start && currentTimeMs <= end
+
         if (this.playing && isWithinRange) {
           if (!(element.properties as any).isAudioPlaying) {
             const audioTime = (currentTimeMs - start) / 1000
@@ -1693,26 +1750,34 @@ export class Store {
     let mp4 = this.selectedVideoFormat === 'mp4';
     const canvas = document.getElementById('canvas') as HTMLCanvasElement;
     const stream = canvas.captureStream(30);
+
     const videoElements = this.editorElements.filter(isEditorVideoElement);
     const audioElements = this.editorElements.filter(isEditorAudioElement);
+
     if (!this.audioContext) {
       this.audioContext = new AudioContext();
     }
+
     const audioContext = this.audioContext!;
     const mixedAudioDestination = audioContext.createMediaStreamDestination();
+
+
     videoElements.forEach((video) => {
       const videoElement = document.getElementById(video.properties.elementId) as HTMLVideoElement;
       if (!videoElement) {
         console.warn('Skipping missing video element:', video.properties.elementId);
         return;
       }
+
       videoElement.muted = false;
       videoElement.play().catch((err) => console.error('Video play error:', err));
+
       let sourceNode = this.audioSourceNodes.get(video.properties.elementId);
       if (!sourceNode) {
         sourceNode = audioContext.createMediaElementSource(videoElement);
         this.audioSourceNodes.set(video.properties.elementId, sourceNode);
       }
+
       if (!sourceNode) {
         console.error('Error: sourceNode is undefined for', video.properties.elementId);
         return;
@@ -1721,55 +1786,74 @@ export class Store {
       sourceNode.connect(mixedAudioDestination);
     });
 
+
     audioElements.forEach((audio) => {
       const audioElement = document.getElementById(audio.properties.elementId) as HTMLAudioElement;
       if (!audioElement) {
         console.warn('Skipping missing audio element:', audio.properties.elementId);
         return;
       }
-      const audioStartTime = audio.timeFrame.start / 1000;
+
+      const audioStartTime = audio.timeFrame.start / 1000;  
+
+     
       setTimeout(() => {
         console.log(`Starting standalone audio at ${audioStartTime}s`);
         audioElement.play().catch((err) => console.error('Audio play error:', err));
       }, audio.timeFrame.start);
+
       let sourceNode = this.audioSourceNodes.get(audio.properties.elementId);
       if (!sourceNode) {
         sourceNode = audioContext.createMediaElementSource(audioElement);
         this.audioSourceNodes.set(audio.properties.elementId, sourceNode);
       }
+
       if (!sourceNode) {
         console.error('Error: sourceNode is undefined for', audio.properties.elementId);
         return;
       }
+
       sourceNode.connect(mixedAudioDestination);
     });
+
+    
     const mixedAudioStream = mixedAudioDestination.stream;
     mixedAudioStream.getAudioTracks().forEach((track) => {
       stream.addTrack(track);
     });
+
+     
     const video = document.createElement('video');
     video.srcObject = stream;
     video.height = canvas.height;
     video.width = canvas.width;
+
     video.play().then(() => {
       console.log('Video is playing with correctly timed audio.');
+
       const mediaRecorder = new MediaRecorder(stream);
       const chunks: Blob[] = [];
+
       mediaRecorder.ondataavailable = function (e) {
         chunks.push(e.data);
         console.log('Data available:', e.data);
       };
+
       mediaRecorder.onstop = async function () {
         const blob = new Blob(chunks, { type: 'video/webm' });
+
         if (mp4) {
           showLoading();
+
           const data = new Uint8Array(await blob.arrayBuffer());
           const ffmpeg = new FFmpeg();
           const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.2/dist/umd';
+
           await ffmpeg.load({
             coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
             wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
-          })
+          });
+
           await ffmpeg.writeFile('video.webm', data);
           await ffmpeg.exec([
             '-y',
@@ -1785,10 +1869,12 @@ export class Store {
             'experimental',
             'video.mp4',
           ]);
+
           const output = await ffmpeg.readFile('video.mp4');
           const outputBlob = new Blob([output], { type: 'video/mp4' });
           const outputUrl = URL.createObjectURL(outputBlob);
           hideLoading();
+
           const a = document.createElement('a');
           a.download = 'video.mp4';
           a.href = outputUrl;
@@ -1801,12 +1887,17 @@ export class Store {
           a.click();
         }
       };
+
       mediaRecorder.start();
       setTimeout(() => {
         mediaRecorder.stop();
-      }, this.getMaxTime());
+      }, this.maxTime);
     });
   }
+
+
+
+
 
   refreshElements() {
     const store = this

@@ -53,38 +53,38 @@ export const TimeLine: React.FC = observer(() => {
     const isActive = store.activeSceneIndex === idx;
 
 
-    // console.log('Scene Element:', idx);
-    // console.dir({
-    //   id: sceneElem.id,
-    //   type: sceneElem.type,
-    //   name: sceneElem.name,
-    //   timeFrame: { ...sceneElem.timeFrame },
-    //   properties: {
-    //     sceneIndex: sceneElem.properties.sceneIndex,
-    //     backgrounds: sceneElem.properties.backgrounds?.map(bg => ({
-    //       id: bg.id,
-    //       name: bg.name,
-    //       timeFrame: { ...bg.timeFrame }
-    //     })),
-    //     gifs: sceneElem.properties.gifs?.map(gf => ({
-    //       id: gf.id,
-    //       tags: gf.tags,
-    //       timeFrame: { ...gf.timeFrame }
-    //     })),
-    //     animations: sceneElem.properties.animations?.map(anim => ({
-    //       id: anim.id,
-    //       timeFrame: { ...anim.timeFrame }
-    //     })),
-    //     elements: sceneElem.properties.elements?.map(el => ({
-    //       id: el.id,
-    //       type: el.type,
-    //       timeFrame: { ...el.timeFrame }
-    //     }))
-    //   },
-    //   fabricObjects: Array.isArray(sceneElem.fabricObject)
-    //     ? sceneElem.fabricObject.length
-    //     : sceneElem.fabricObject ? 1 : 0
-    // }, { depth: null });
+   
+    console.dir({
+      id: sceneElem.id,
+      type: sceneElem.type,
+      name: sceneElem.name,
+      timeFrame: { ...sceneElem.timeFrame },
+      properties: {
+        sceneIndex: sceneElem.properties.sceneIndex,
+        backgrounds: sceneElem.properties.backgrounds?.map(bg => ({
+          id: bg.id,
+          name: bg.name,
+          timeFrame: { ...bg.timeFrame }
+        })),
+        gifs: sceneElem.properties.gifs?.map(gf => ({
+          id: gf.id,
+          tags: gf.tags,
+          timeFrame: { ...gf.timeFrame }
+        })),
+        animations: sceneElem.properties.animations?.map(anim => ({
+          id: anim.id,
+          timeFrame: { ...anim.timeFrame }
+        })),
+        elements: sceneElem.properties.elements?.map(el => ({
+          id: el.id,
+          type: el.type,
+          timeFrame: { ...el.timeFrame }
+        }))
+      },
+      fabricObjects: Array.isArray(sceneElem.fabricObject)
+        ? sceneElem.fabricObject.length
+        : sceneElem.fabricObject ? 1 : 0
+    }, { depth: null });
 
 
 
