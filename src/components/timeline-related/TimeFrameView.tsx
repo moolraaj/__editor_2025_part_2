@@ -97,8 +97,8 @@ export const TimeFrameView = observer((props: { element: EditorElement }) => {
     return (
       <div className="space-y-2">
 
-        <div
-          className="p-2 bg-gray-800 text-white cursor-pointer flex justify-between items-center"
+        {/* <div
+          className="p-2 bg-gray-800 text-white cursor-pointer flex justify-between items-center layers_length get_all_layers"
           onClick={e => {
             e.stopPropagation();
             store.setCurrentTimeInMs(scene.timeFrame.start);
@@ -117,7 +117,7 @@ export const TimeFrameView = observer((props: { element: EditorElement }) => {
         >
 
           <span className="text-xs opacity-75">{sceneLayers.length} layers</span>
-        </div>
+        </div> */}
 
 
         {sceneLayers.map((layer, idx) => {

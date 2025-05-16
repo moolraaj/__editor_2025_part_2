@@ -216,6 +216,46 @@ export interface SceneElement extends SceneLayer {
 }
 
 
+export interface GifItem {
+  svg_url: string;
+  calculatedPosition?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+
+ 
+
+interface SceneResource {
+  id: string;
+  layerType: string;
+  timeFrame: TimeFrame;
+  [key: string]: any;  
+}
+
+export interface SceneElements {
+  id: string;
+  name: string;
+  type: string;
+  placement: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  timeFrame: TimeFrame;
+  properties: {
+    sceneIndex: number;
+    backgrounds: SceneResource[];
+    gifs: SceneResource[];
+    animations: SceneResource[];
+    elements: SceneResource[];
+  };
+  fabricObject?: fabric.Object;
+}
+
 
  
 

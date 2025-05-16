@@ -171,6 +171,23 @@ h3.popup-title {
   border: 2px solid rgb(37 99 235)!important;
 }
 
+.select_layers_wrapper {
+    position: relative;
+}
+
+.get_all_layers {
+    position: absolute;
+ 
+    right: 0;
+    top: 0;
+  
+    border: 1px solid #80808073;
+    border-radius: 4px;
+    margin-top: 3px;
+    font-size: 16px;
+    text-transform: capitalize;
+}
+
 .scene_outer_wrapper img {
   object-fit: cover;
   height: 100px;
