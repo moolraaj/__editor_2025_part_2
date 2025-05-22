@@ -33,6 +33,7 @@
     "gifuct-js": "^2.1.2",
     "gsap": "^3.12.7",
     "html2canvas": "^1.4.1",
+    "jspdf": "^3.0.1",
     "lucide-react": "^0.503.0",
     "mobx": "^6.9.0",
     "mobx-react": "^7.6.0",

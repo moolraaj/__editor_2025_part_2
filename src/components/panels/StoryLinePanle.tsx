@@ -7,6 +7,7 @@ import { StoreContext } from '@/store';
 import { CreateStorylinePopup } from '../entity/StoryLineresource';
 import StoryLineResults from '../storyline/StoryLineresults';
 import { API_URL } from '@/utils/constants';
+import { PdfExporter } from '../storyline/PdfExporter';
 
 type SearchResponse = {
   results: any[];
@@ -106,6 +107,8 @@ const StoryLinePanel: React.FC = observer(() => {
         sentences={lastSentences}
         setShowResultPopup={setShowResultPopup}
       />
+
+      <PdfExporter/>
     </div>
   );
 });

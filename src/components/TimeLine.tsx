@@ -11,6 +11,8 @@ export const TimeLine: React.FC = observer(() => {
   const nowPct = (store.currentTimeInMs / store.maxTime) * 100;
   const [expandedScene, setExpandedScene] = useState<number | null>(null);
 
+  console.log(expandedScene)
+
  
   useEffect(() => {
     const sceneCount = store.scenes.length;
@@ -30,7 +32,7 @@ export const TimeLine: React.FC = observer(() => {
     }
   }, [store.scenes.length]);
 
- 
+
   const handleSceneClick = (_idx: number) => {
     store.setActiveScene(_idx);
     if (store.canvas) {
@@ -106,7 +108,7 @@ export const TimeLine: React.FC = observer(() => {
             {store.editorElements
               .filter((e) => e.type !== "scene")
               .map((el) => (
-                <div key={el.id} className="bg-gray-800 rounded-lg p-2">
+                <div key={el.id} className="bg-gray-800 rounded-lg">
                   <TimeFrameView element={el} />
                 </div>
               ))}
@@ -114,10 +116,11 @@ export const TimeLine: React.FC = observer(() => {
         )}
 
        
-        <div
-          className="w-[2px] bg-[#f87171] absolute top-0 bottom-0 z-20"
+
+           <div
+          className="w-[2px] bg-[#f87171] absolute top-0 bottom-0 z-20 left-10"
           style={{ left: `${nowPct}%` }}
-        />
+        ></div>
       </div>
     </div>
   );

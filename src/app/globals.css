@@ -59,13 +59,78 @@ body {
   margin-top: 30px;
 }
 
+.char_type {
+    display: flex;
+    gap: 8px;
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+}
+
+.svg_type_img img {
+    height: 70px;
+    width: 70px;
+    object-fit: contain;
+}
+
+.playloads {
+    position: relative;
+}
+
+.svg_type_img {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+
+
+/* timeline tab css here */
+
+.scene_tab_b {
+    padding: 8px 16px;
+    background: unset;
+    border-radius: 4px 4px 0px 0px;
+    color: #fff;
+    border: 1px solid #8080805c;
+    border-bottom: unset;
+}
+
+.ac_scenes {
+    background: rgb(59 130 246);
+}
+
+.ac_scene {
+    background: rgb(209 213 219);
+    color: #202020;
+}
+
+
+
+.p_inner_wrapper {
+    border: 2px solid rgb(37 99 235)!important;
+}
+
+.p_inner_wrapper img {
+    height: 150px;
+    width: 100%;
+    object-fit: cover;
+} 
+
+.st_line_buttons_outer button {
+    background: rgb(59 130 246 / 50%);
+    padding: 10px 20px;
+    border-radius: 4px;
+    color: #fff;
+    margin-top: 20px;
+}
 
 
 
 
 
 
-/*fixed*/
 
 
 .popup_overlay {
@@ -89,7 +154,7 @@ body {
   border-radius: 10px;
   position: relative;
   width: 90%;
-  max-width: 800px;
+  max-width: 900px;
 }
 
 .popup_content svg {

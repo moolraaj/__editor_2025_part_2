@@ -95,7 +95,7 @@ const MENU_OPTIONS = [
     },
   },
   {
-    name: "Storyline",
+    name: "STORYLINE",
     icon: MdAddCircleOutline,
     action: (store: Store) => {
       store.setSelectedMenuOption("STORYLINE");

@@ -183,6 +183,9 @@ export interface Scene {
   gifs: { svg_url: string }[];
   animations: { name: string }[];
   elements: EditorElement[];
+  text?: string
+ 
+
 }
 
 export interface SceneLayer {
@@ -254,6 +257,17 @@ export interface SceneElements {
     elements: SceneResource[];
   };
   fabricObject?: fabric.Object;
+}
+
+
+export interface GifElement {
+  svg_url: string;
+  calculatedPosition?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
 }
 
 
