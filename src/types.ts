@@ -41,8 +41,8 @@ export type SvgEditorElement = EditorElementBase<
 
 export interface SceneBackground {
   background_url: string;
-  
-  
+
+
 }
 
 export interface SceneGif {
@@ -54,14 +54,15 @@ export interface SceneAnimation {
 }
 
 
- 
+
 export type SceneEditorElement = EditorElementBase<'scene', {
   sceneIndex: number;
   backgrounds: SceneBackground[];
   gifs: SceneGif[];
   animations: SceneAnimation[];
   elements: EditorElement[];
- 
+  text?: string;
+
 }>;
 
 
@@ -83,7 +84,7 @@ export type Placement = {
   scaleY: number;
 };
 
- 
+
 
 export type EffectBase<T extends string> = {
   type: T;
@@ -146,7 +147,7 @@ export interface GifResult {
   id: string;
   tags: string[];
   gif_url: string
- 
+
 
 }
 
@@ -160,7 +161,7 @@ export interface AnimationTypes {
   name: string;
   gif_url?: string;
   timeFrame: TimeFrame;
-  
+
 }
 
 interface Background {
@@ -183,18 +184,19 @@ export interface Scene {
   gifs: { svg_url: string }[];
   animations: { name: string }[];
   elements: EditorElement[];
-  text?: string
- 
+  text?: string[]
+
 
 }
 
 export interface SceneLayer {
   id: string;
-  layerType: 'background' | 'svg' | 'animation' | 'element';
+  layerType: 'background' | 'svg' | 'animation' | 'element' | 'text';
   name?: string;
   timeFrame: TimeFrame;
   fabricObject?: fabric.Object | fabric.Object[];
   [key: string]: any;
+   
 }
 
 
@@ -229,13 +231,19 @@ export interface GifItem {
   };
 }
 
- 
+
 
 interface SceneResource {
   id: string;
   layerType: string;
   timeFrame: TimeFrame;
-  [key: string]: any;  
+  [key: string]: any;
+}
+interface TextResource {
+  id: string;
+  layerType: string;
+  timeFrame: TimeFrame;
+  [key: string]: any;
 }
 
 export interface SceneElements {
@@ -255,6 +263,7 @@ export interface SceneElements {
     gifs: SceneResource[];
     animations: SceneResource[];
     elements: SceneResource[];
+    text:TextResource[]
   };
   fabricObject?: fabric.Object;
 }
@@ -271,5 +280,5 @@ export interface GifElement {
 }
 
 
- 
+
 

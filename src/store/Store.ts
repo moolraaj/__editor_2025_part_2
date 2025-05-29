@@ -81,69 +81,83 @@ export class Store {
     this.activeSceneIndex = index;
     this.refreshElements();
   }
-addSceneResource(scene: Scene) {
-  const sceneDuration = SCENE_ELEMENTS_TIME * 1000;
-  const idx = this.scenes.length;
-  const sceneStart = idx * sceneDuration;
-  const sceneEnd = sceneStart + sceneDuration;
-  const svgCount = scene.gifs.length;
-
-  const processedScene = {
-    ...scene,
-    timeFrame: { start: sceneStart, end: sceneEnd },
-    backgrounds: scene.backgrounds.map((bg, i) => ({
-      ...bg,
-      id: `bg-${idx}-${i}`,
-      layerType: 'background',
-      timeFrame: { start: sceneStart, end: sceneEnd }
-    })),
-    gifs: scene.gifs.map((gif, i) => ({
-      ...gif,
-      id: `gif-${idx}-${i}`,
-      layerType: 'svg',
+  addSceneResource(scene: Scene) {
+    const sceneDuration = SCENE_ELEMENTS_TIME * 1000;
+    const idx = this.scenes.length;
+    const sceneStart = idx * sceneDuration;
+    const sceneEnd = sceneStart + sceneDuration;
+    const svgCount = scene.gifs.length;
+    const processedScene = {
+      ...scene,
       timeFrame: { start: sceneStart, end: sceneEnd },
-      calculatedPosition: svgCount > 0 ? this.calculateSvgPositions(svgCount)[i] : null
-    })),
-    animations: scene.animations.map((anim, i) => ({
-      ...anim,
-      id: `anim-${idx}-${i}`,
-      layerType: 'animation',
-      timeFrame: { start: sceneStart, end: sceneEnd }
-    })),
-    elements: scene.elements,
-    
-    text: scene.text || ''
-  };
-
-  this.scenes.push(processedScene);
-  this.maxTime = this.getMaxTime();
-
-  const sceneElem = {
-    id: `scene-${idx}`,
-    name: `Scene ${idx + 1}`,
-    type: 'scene',
-    placement: { 
-      x: 0, 
-      y: 0, 
-      width: this.canvas?.width || 800, 
-      height: this.canvas?.height || 600 
-    },
-    timeFrame: { start: sceneStart, end: sceneEnd },
-    properties: {
-      sceneIndex: idx,
-      backgrounds: processedScene.backgrounds,
-      gifs: processedScene.gifs,
-      animations: processedScene.animations,
-      elements: processedScene.elements,
-      text: processedScene.text
-    },
-    fabricObject: undefined,
-  };
-
-  //@ts-ignore
-  this.editorElements.push(sceneElem);
-  this.refreshAnimations();
-}
+      backgrounds: scene.backgrounds.map((bg, i) => ({
+        ...bg,
+        id: `bg-${idx}-${i}`,
+        layerType: 'background',
+        timeFrame: { start: sceneStart, end: sceneEnd }
+      })),
+      gifs: scene.gifs.map((gif, i) => ({
+        ...gif,
+        id: `gif-${idx}-${i}`,
+        layerType: 'svg',
+        timeFrame: { start: sceneStart, end: sceneEnd },
+        calculatedPosition: svgCount > 0 ? this.calculateSvgPositions(svgCount)[i] : null
+      })),
+      animations: scene.animations.map((anim, i) => ({
+        ...anim,
+        id: `anim-${idx}-${i}`,
+        layerType: 'animation',
+        timeFrame: { start: sceneStart, end: sceneEnd }
+      })),
+      elements: scene.elements.map((el, i) => ({
+        ...el,
+        layerType: 'element',
+        id: `elem-${idx}-${i}`,
+        timeFrame: { start: sceneStart, end: sceneEnd }
+      })),
+      text: Array.isArray(scene.text) && scene.text.length
+        ? [{
+          id: `text-${idx}`,
+          value: scene.text[0],
+          layerType: 'text',
+          placement: {
+            x: 20,
+            y: 20,
+            width: this.canvas?.width! - 40,
+            height: undefined,
+          },
+          properties: {
+            fontSize: 24,
+            fontFamily: 'Arial',
+            fill: '#000',
+          },
+          timeFrame: { start: sceneStart, end: sceneEnd },
+        }]
+        : [],
+    };
+    //@ts-ignore
+    this.scenes.push(processedScene);
+    this.maxTime = this.getMaxTime();
+    const sceneElem = {
+      id: `scene-${idx}`,
+      name: `Scene ${idx + 1}`,
+      type: 'scene',
+      placement: { x: 0, y: 0, width: this.canvas?.width || 800, height: this.canvas?.height || 600 },
+      timeFrame: { start: sceneStart, end: sceneEnd },
+      properties: {
+        sceneIndex: idx,
+        backgrounds: processedScene.backgrounds,
+        gifs: processedScene.gifs,
+        animations: processedScene.animations,
+        elements: processedScene.elements,
+        text: processedScene.text
+      },
+      fabricObject: undefined,
+    };
+    //@ts-ignore
+    this.editorElements.push(sceneElem);
+    this.refreshAnimations();
+  }
   private calculateSvgPositions(count: number): { x: number, y: number, width: number, height: number }[] {
     if (count === 0) return [];
     const canvasWidth = this.canvas?.width || 800;
@@ -845,7 +859,8 @@ addSceneResource(scene: Scene) {
       tryUpdate(scene.backgrounds as any) ||
       tryUpdate(scene.gifs as any) ||
       tryUpdate(scene.animations as any) ||
-      tryUpdate(scene.elements as any)
+      tryUpdate(scene.elements as any) ||
+      tryUpdate(scene.text as any)
     ) {
       const elem = this.editorElements.find(
         e => e.type === 'scene' && e.properties.sceneIndex === sceneIndex
@@ -855,7 +870,8 @@ addSceneResource(scene: Scene) {
         tryUpdate(p.backgrounds as any) ||
           tryUpdate(p.gifs as any) ||
           tryUpdate(p.animations as any) ||
-          tryUpdate(p.elements as any);
+          tryUpdate(p.elements as any) ||
+          tryUpdate(p.text as any);
       }
       this.updateVideoElements();
       this.updateAudioElements();
@@ -2091,6 +2107,10 @@ addSceneResource(scene: Scene) {
           })
           break
         }
+
+
+
+
         case 'scene': {
           if (element.properties.sceneIndex !== this.activeSceneIndex) {
             break;
@@ -2130,7 +2150,8 @@ addSceneResource(scene: Scene) {
                 canvas.requestRenderAll();
               }
             };
- 
+
+
             sceneData.backgrounds.forEach((bg, i) => {
               fabric.Image.fromURL(
                 bg.background_url,
@@ -2146,7 +2167,7 @@ addSceneResource(scene: Scene) {
                     selectable: !isFirstBackground,
                     name: `BG ${i}`,
                     data: {
-                      zIndex: 0,  
+                      zIndex: 0,
                       isBackground: true
                     },
                     scaleX: scale,
@@ -2184,13 +2205,12 @@ addSceneResource(scene: Scene) {
                   }
                   parts.push(img);
                   canvas.add(img);
-                  img.sendToBack(); 
+                  img.sendToBack();
                   onPartLoaded();
                 },
                 { crossOrigin: 'anonymous' }
               );
             });
-
             sceneData.gifs.forEach((gif, i) => {
               const url = gif.svg_url.toLowerCase();
               const pos = (gif as any).calculatedPosition || {
@@ -2237,7 +2257,7 @@ addSceneResource(scene: Scene) {
             element.properties.elements.forEach(childElement => {
               if (this.currentTimeInMs >= childElement.timeFrame.start &&
                 this.currentTimeInMs <= childElement.timeFrame.end) {
-                const zIndex = childElement.type === 'svg' ? 1 : 1; 
+                const zIndex = childElement.type === 'svg' ? 1 : 1;
                 switch (childElement.type) {
                   case 'text':
                     if (!childElement.fabricObject) {
@@ -2373,7 +2393,7 @@ addSceneResource(scene: Scene) {
                           scaleY: childElement.placement.scaleY,
                           angle: childElement.placement.rotation,
                           selectable: true,
-                          data: { zIndex: 1 } 
+                          data: { zIndex: 1 }
                         });
 
                         childElement.fabricObject = group;
@@ -2393,6 +2413,8 @@ addSceneResource(scene: Scene) {
           }
           break;
         }
+
+
         default: {
           throw new Error('Not implemented')
         }

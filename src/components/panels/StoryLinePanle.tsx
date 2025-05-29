@@ -8,19 +8,15 @@ import { CreateStorylinePopup } from '../entity/StoryLineresource';
 import StoryLineResults from '../storyline/StoryLineresults';
 import { API_URL } from '@/utils/constants';
 import { PdfExporter } from '../storyline/PdfExporter';
-
 type SearchResponse = {
   results: any[];
- 
   suggestions?: Record<number, { suggestion: string; assets: any }>;
-};
-
+}
 const StoryLinePanel: React.FC = observer(() => {
   const store = useContext(StoreContext);
   const [showResultPopup, setShowResultPopup] = useState(false);
   const [payloads, setPayloads] = useState<any[]>([]);
   const [lastSentences, setLastSentences] = useState<string[]>([]);
-
   const speakText = async (text: string) => {
     try {
       const res = await fetch(`${API_URL}/speak`, {
@@ -41,15 +37,10 @@ const StoryLinePanel: React.FC = observer(() => {
       console.error('Error playing TTS:', err);
     }
   };
-
   const handleSubmit = async (sentences: string[]) => {
     if (!sentences.length) return;
     setLastSentences(sentences);
-
-   
     // await speakText(sentences.join('. '));
-
- 
     const res = await fetch(`${API_URL}/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -59,10 +50,7 @@ const StoryLinePanel: React.FC = observer(() => {
       console.error('Search request failed:', res.statusText);
       return;
     }
-
     const data: SearchResponse = await res.json();
-
- 
     if (data.suggestions) {
       const lines = Object.entries(data.suggestions).map(
         ([idx, { suggestion }]) =>
@@ -75,13 +63,10 @@ const StoryLinePanel: React.FC = observer(() => {
       );
       return;
     }
-
-  
     setPayloads(data.results);
     setShowResultPopup(true);
     store.setShowStorylinePopup(false);
   };
-
   return (
     <div>
       <div className="text-sm px-4 text-white pt-4 pb-2 font-semibold">

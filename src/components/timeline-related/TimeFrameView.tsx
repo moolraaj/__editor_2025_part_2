@@ -6,19 +6,17 @@ import DragableView from "./DragableView";
 import { FaCopy, FaPaste, FaTrash, FaEllipsisV, FaCut } from "react-icons/fa";
 import type { EditorElement, SceneEditorElement, SceneLayer, TimeFrame } from "@/types";
 import { fabric } from 'fabric';
+interface TimeFrameViewProps {
+  element: EditorElement;
+  setCurrentSceneIndex?: React.Dispatch<React.SetStateAction<number>>;
+  handleSceneClick?: (idx:number)=>void;
+}
 
-
-
-
-
-
-export const TimeFrameView = observer((props: { element: EditorElement }) => {
+export const TimeFrameView = observer((props: TimeFrameViewProps) => {
   const store = useContext(StoreContext);
-  const { element } = props;
+  const { element, setCurrentSceneIndex,handleSceneClick } = props;
   const [isShow, setIsShow] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const cmd = e.ctrlKey || e.metaKey, key = e.key.toLowerCase();
@@ -31,8 +29,6 @@ export const TimeFrameView = observer((props: { element: EditorElement }) => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [store]);
-
-
   if (element.type === "scene") {
     const scene = element as SceneEditorElement;
     const sceneStart = scene.timeFrame.start;
@@ -42,34 +38,26 @@ export const TimeFrameView = observer((props: { element: EditorElement }) => {
       ? (scene.fabricObject as fabric.Object[])
       : [];
 
-
     const sceneLayers: SceneLayer[] = [
-      ...(scene.properties.backgrounds || []).map(bg => ({ ...bg, layerType: "background" as const , timeFrame: { ...bg.timeFrame } })),
+      ...(scene.properties.backgrounds || []).map(bg => ({ ...bg, layerType: "background" as const, timeFrame: { ...bg.timeFrame } })),
       ...(scene.properties.gifs || []).map(gf => ({ ...gf, layerType: "svg" as const, timeFrame: { ...gf.timeFrame } })),
       ...(scene.properties.animations || []).map(an => ({ ...an, layerType: "animation" as const, timeFrame: { ...an.timeFrame } })),
       ...(scene.properties.elements || []).map(el => ({ ...el, layerType: "element" as const, timeFrame: { ...el.timeFrame } })),
+      ...(Array.isArray(scene.properties.text) ? scene.properties.text.map(el => ({
+        ...el,
+        layerType: "text" as const,
+        timeFrame: { ...el.timeFrame }
+      })) : []),
     ];
-
-
-
-
     const [offsets, setOffsets] = useState(
       sceneLayers.map(l => l.timeFrame.start - sceneStart)
     );
-
-    console.log(offsets)
-
     const handleLayerChange = (
       idx: number,
       rawValue: number,
       isEnd: boolean
     ) => {
       const layer = sceneLayers[idx];
-
-
-
-
-
       const oldTF = layer.timeFrame;
       const absTime = Math.min(
         Math.max(sceneStart, sceneStart + rawValue),
@@ -78,48 +66,17 @@ export const TimeFrameView = observer((props: { element: EditorElement }) => {
       const newTF: TimeFrame = isEnd
         ? { start: oldTF.start, end: absTime }
         : { start: absTime, end: oldTF.end };
-
-
-
       setOffsets(ofs =>
         ofs.map((o, i) => (i === idx ? newTF.start - sceneStart : o))
       );
-
-
       store.updateSceneLayerTimeFrame(
         scene.properties.sceneIndex,
         layer.id,
         newTF
       );
     };
-
-
     return (
       <div className="space-y-2">
-
-        {/* <div
-          className="p-2 bg-gray-800 text-white cursor-pointer flex justify-between items-center layers_length get_all_layers"
-          onClick={e => {
-            e.stopPropagation();
-            store.setCurrentTimeInMs(scene.timeFrame.start);
-            store.setActiveScene(scene.properties.sceneIndex);
-            store.setSelectedElement(scene);
-
-            const objs = Array.isArray(scene.fabricObject)
-              ? scene.fabricObject
-              : [];
-            if (objs.length && store.canvas) {
-              const sel = new fabric.ActiveSelection(objs, { canvas: store.canvas });
-              store.canvas.setActiveObject(sel);
-            }
-            store.updateTimeTo(scene.timeFrame.start);
-          }}
-        >
-
-          <span className="text-xs opacity-75">{sceneLayers.length} layers</span>
-        </div> */}
-
-
         {sceneLayers.map((layer, idx) => {
           const tf = layer.timeFrame;
           const leftPct = ((tf.start - sceneStart) / sceneDuration) * 100;
@@ -134,6 +91,8 @@ export const TimeFrameView = observer((props: { element: EditorElement }) => {
               onClick={e => {
                 e.stopPropagation();
                 store.setActiveScene(scene.properties.sceneIndex);
+                setCurrentSceneIndex?.(scene.properties.sceneIndex);
+                handleSceneClick?.(scene.properties.sceneIndex);
 
                 if (layer.layerType === "element") {
                   const sceneElement = store.editorElements.find(e => e.id === layer.id);
@@ -147,7 +106,7 @@ export const TimeFrameView = observer((props: { element: EditorElement }) => {
                     obj && store.canvas?.setActiveObject(obj);
                   }
                 } else {
-                  store.setSelectedElement(scene); // scene is already a SceneEditorElement
+                  store.setSelectedElement(scene);
                   fabricLayers[idx] && store.canvas?.setActiveObject(fabricLayers[idx]);
                 }
 
@@ -155,7 +114,7 @@ export const TimeFrameView = observer((props: { element: EditorElement }) => {
               }}
 
             >
-              {/* Left handle */}
+
               <DragableView
                 className="z-10 cursor-ew-resize absolute h-full"
                 value={tf.start - sceneStart}
@@ -166,7 +125,7 @@ export const TimeFrameView = observer((props: { element: EditorElement }) => {
                 <div className="bg-white border-2 border-blue-400 w-full h-full" />
               </DragableView>
 
-              {/* Bar */}
+
               <DragableView
                 className="cursor-grab absolute h-full"
                 value={tf.start - sceneStart}
@@ -189,6 +148,7 @@ export const TimeFrameView = observer((props: { element: EditorElement }) => {
                   {layer.layerType === 'background' ? layer.name : ''}
                   {layer.layerType === 'svg' ? layer.tags[0] : ''}
                   {layer.layerType === 'element' ? layer.type : ''}
+                  {layer.layerType === 'text' ? layer.type : ''}
 
                 </div>
               </DragableView>
@@ -270,7 +230,7 @@ export const TimeFrameView = observer((props: { element: EditorElement }) => {
         </div>
       </DragableView>
 
-      {/* Right handle */}
+
       <DragableView
         className="z-10 cursor-ew-resize absolute h-full"
         value={end}

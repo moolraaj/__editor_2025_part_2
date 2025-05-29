@@ -20,7 +20,7 @@ interface ScenePayload {
   svgs: SvgAsset[];
   backgrounds: BackgroundAsset[];
   animations: AnimationAsset[];
-  text:string
+  text:string[]
 }
 interface StoryLineResultsProps {
   showResultPopup: boolean;
@@ -60,10 +60,13 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
       console.error('Error downloading file:', err);
     }
   };
+
+ 
+
+
   const handleAddToCanvas = () => {
     payloads.forEach((scenePayload) => {
       store.addSceneResource({
-
         backgrounds: scenePayload.backgrounds,
         gifs: scenePayload.svgs,
         animations: scenePayload.animations,
