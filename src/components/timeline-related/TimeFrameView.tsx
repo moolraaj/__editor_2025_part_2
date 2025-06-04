@@ -9,12 +9,12 @@ import { fabric } from 'fabric';
 interface TimeFrameViewProps {
   element: EditorElement;
   setCurrentSceneIndex?: React.Dispatch<React.SetStateAction<number>>;
-  handleSceneClick?: (idx:number)=>void;
+  handleSceneClick?: (idx: number) => void;
 }
 
 export const TimeFrameView = observer((props: TimeFrameViewProps) => {
   const store = useContext(StoreContext);
-  const { element, setCurrentSceneIndex,handleSceneClick } = props;
+  const { element, setCurrentSceneIndex, handleSceneClick } = props;
   const [isShow, setIsShow] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -88,29 +88,71 @@ export const TimeFrameView = observer((props: TimeFrameViewProps) => {
             <div
               key={`${layer.layerType}-${layer.id}`}
               className="relative w-full h-[25px] my-1 flex items-center"
-              onClick={e => {
+              // In TimeFrameView.tsx - Replace the existing onClick handler with this:
+              onClick={async (e) => {
                 e.stopPropagation();
                 store.setActiveScene(scene.properties.sceneIndex);
                 setCurrentSceneIndex?.(scene.properties.sceneIndex);
                 handleSceneClick?.(scene.properties.sceneIndex);
 
-                if (layer.layerType === "element") {
-                  const sceneElement = store.editorElements.find(e => e.id === layer.id);
-                  if (sceneElement) {
-                    store.setSelectedElement(sceneElement);
+                // Find the target element based on layer type
+                let targetElement: EditorElement | undefined;
+                let targetFabricObject: fabric.Object | undefined;
 
-                    const obj = Array.isArray(sceneElement.fabricObject)
-                      ? sceneElement.fabricObject[0]
-                      : sceneElement.fabricObject;
+                if (layer.layerType === "background") {
+                  targetElement = store.editorElements.find(
+                    e => e.type === "scene" &&
+                      (e as SceneEditorElement).properties.sceneIndex === scene.properties.sceneIndex
+                  );
+                  targetFabricObject = targetElement?.fabricObject as fabric.Object | undefined;
+                }
+                else if (layer.layerType === "element") {
+                  targetElement = store.editorElements.find(e => e.id === layer.id);
+                  targetFabricObject = targetElement?.fabricObject as fabric.Object | undefined;
+                }
+                else {
+                  // For text, svg, etc.
+                  targetElement = store.editorElements.find(
+                    e => e.type === "scene" &&
+                      (e as SceneEditorElement).properties.sceneIndex === scene.properties.sceneIndex
+                  );
 
-                    obj && store.canvas?.setActiveObject(obj);
+                  if (targetElement?.fabricObject) {
+                    if (Array.isArray(targetElement.fabricObject)) {
+                      targetFabricObject = targetElement.fabricObject.find(
+                        obj => obj.data?.elementId === layer.id
+                      );
+                    } else {
+                      targetFabricObject = targetElement.fabricObject;
+                    }
                   }
-                } else {
-                  store.setSelectedElement(scene);
-                  fabricLayers[idx] && store.canvas?.setActiveObject(fabricLayers[idx]);
                 }
 
-                store.canvas?.requestRenderAll();
+                if (targetElement) {
+                  store.setSelectedElement(targetElement);
+
+                  if (store.canvas) {
+                    // Deselect all first
+                    store.canvas.discardActiveObject();
+
+                    if (targetFabricObject) {
+                      // Ensure object is selectable
+                      targetFabricObject.set({
+                        selectable: true,
+                        evented: true
+                      });
+
+                      // Select and bring to front
+                      store.canvas.setActiveObject(targetFabricObject);
+                      targetFabricObject.bringToFront();
+
+                      // Center viewport on selection if needed
+                      store.canvas.viewportCenterObject(targetFabricObject);
+                    }
+
+                    store.canvas.requestRenderAll();
+                  }
+                }
               }}
 
             >
