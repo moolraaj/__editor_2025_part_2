@@ -1,5 +1,7 @@
 export const GLOBAL_ELEMENTS_TIME=30 
-export const SCENE_ELEMENTS_TIME=10
+export const SCENE_ELEMENTS_TIME=5
+export const SCENE_ELEMENTS_LAYERS_TIME=3
+export const SCENE_MIN_TIME_MS = SCENE_ELEMENTS_TIME * 1000;  
 
 export const ALL_FONTS: string[] = [
   "Arial",

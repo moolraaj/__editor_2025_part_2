@@ -12,50 +12,52 @@ export type ElementProps = {
 export const Element = observer((props: ElementProps) => {
   const store = React.useContext(StoreContext);
   const { element } = props;
+
   const Icon =
     element.type === "video"
       ? MdMovie
       : element.type === "image"
-        ? AiOutlineFileImage
-        : MdOutlineTextFields;
+      ? AiOutlineFileImage
+      : MdOutlineTextFields;
 
   const isSelected = store.selectedElement?.id === element.id;
-  const isActiveScene = element.type === "scene" && 
+  const isActiveScene =
+    element.type === "scene" &&
     (element as any).properties.sceneIndex === store.activeSceneIndex;
 
   const bgColor = isSelected ? "rgba(0, 160, 245, 0.1)" : "";
   const borderStyle = isActiveScene ? "2px solid red" : "none";
-  const bgImage = element.type === "scene" && element.properties.backgrounds?.[0]?.background_url;
+
+  // ← Only for scenes, get mainBackground instead of backgrounds[0]
+  let bgImage: string | undefined = undefined;
+  if (element.type === "scene" && element.properties.mainBackground) {
+    bgImage = element.properties.mainBackground.background_url;
+  }
+
   const handleElementClick = () => {
     store.setSelectedElement(element);
     if (element.type === "scene") {
       store.setActiveScene((element as any).properties.sceneIndex);
     }
   };
+
   if (element.type === "scene") {
     return (
       <div
-        className={`scene_outer_wrapper`}
-        id={`${isActiveScene?"active_scene":""}`}
+        className="scene_outer_wrapper"
+        id={`${isActiveScene ? "active_scene" : ""}`}
         key={element.id}
         onClick={handleElementClick}
       >
         {bgImage && (
-          <img 
+          <img
             src={bgImage}
             alt="Scene background"
           />
         )}
-        <div 
-          className="scene_wrapper"
-        >
-          <div 
-            className="scene_name"
-          >
-            <span className="ele_name">
-              {element.name}
-           
-            </span>
+        <div className="scene_wrapper">
+          <div className="scene_name">
+            <span className="ele_name">{element.name}</span>
           </div>
           <button
             className="scene_button"
@@ -73,15 +75,15 @@ export const Element = observer((props: ElementProps) => {
     );
   }
 
- 
+  // Non-scene elements remain unchanged
   return (
     <div
-      style={{ 
+      style={{
         backgroundColor: bgColor,
         border: borderStyle,
-        borderRadius: "4px"
+        borderRadius: "4px",
       }}
-      className={`flex flex-col mx-2 my-1 py-2 px-1 justify-start items-start elements_holder`}
+      className="flex flex-col mx-2 my-1 py-2 px-1 justify-start items-start elements_holder"
       key={element.id}
       onClick={handleElementClick}
     >

@@ -26,7 +26,7 @@ import { FabricUitls } from '@/utils/fabric-utils'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
 import { toBlobURL } from '@ffmpeg/util'
 import { handstandAnimation, walkingAnimations } from '@/utils/animations'
-import { GLOBAL_ELEMENTS_TIME, HANDSTAND, hideLoading, SCENE_ELEMENTS_TIME, showLoading, WALKING } from '@/utils/constants'
+import { GLOBAL_ELEMENTS_TIME, HANDSTAND, hideLoading, SCENE_ELEMENTS_LAYERS_TIME, SCENE_ELEMENTS_TIME, showLoading, WALKING } from '@/utils/constants'
 export class Store {
   canvas: fabric.Canvas | null
   backgroundColor: string
@@ -73,7 +73,7 @@ export class Store {
   }
   getMaxTime() {
     if (this.scenes.length > 0) {
-      return this.scenes.length * SCENE_ELEMENTS_TIME * 1000;
+      return Math.max(...this.scenes.map((s) => s.timeFrame.end));
     }
     return GLOBAL_ELEMENTS_TIME * 1000;
   }
@@ -82,82 +82,136 @@ export class Store {
     this.refreshElements();
   }
   addSceneResource(scene: Scene) {
-    const sceneDuration = SCENE_ELEMENTS_TIME * 1000;
+    // 1) Calculate durations (in milliseconds)
+    const sceneDurationMs = SCENE_ELEMENTS_TIME * 1000;         // e.g. 5000 if SCENE_ELEMENTS_TIME = 5
+    const nestedDurationMs = SCENE_ELEMENTS_LAYERS_TIME * 1000; // e.g. 2000 if SCENE_ELEMENTS_LAYERS_TIME = 2
     const idx = this.scenes.length;
-    const sceneStart = idx * sceneDuration;
-    const sceneEnd = sceneStart + sceneDuration;
+    const sceneStart = idx * sceneDurationMs;
+    const sceneEnd = sceneStart + sceneDurationMs;
+
+    // 2) Extract allBackgrounds, where bg[0] is the “main background”
+    const allBackgrounds = scene.backgrounds;
+    //    If there are no backgrounds, mainBg will be undefined.
+    const [mainBg, ...otherBgs] = allBackgrounds;
     const svgCount = scene.gifs.length;
+
+    // 3) Create a dedicated “mainBackground” object (bg[0]), spanning the full scene duration.
+    //    Give it a layerType="mainBackground" so TimeFrameView can render it separately.
+    const mainBgLayer = mainBg
+      ? {
+        ...mainBg,
+        id: `main-bg-${idx}`,               // unique ID for the main background
+        layerType: "mainBackground" as const,
+        timeFrame: { start: sceneStart, end: sceneEnd },
+      }
+      : null;
+
+    // 4) Build the processedScene, making sure to place mainBgLayer first in backgrounds:
     const processedScene = {
       ...scene,
       timeFrame: { start: sceneStart, end: sceneEnd },
-      backgrounds: scene.backgrounds.map((bg, i) => ({
-        ...bg,
-        id: `bg-${idx}-${i}`,
-        layerType: 'background',
-        timeFrame: { start: sceneStart, end: sceneEnd }
-      })),
+
+      // 4a) backgrounds[] now begins with mainBgLayer (if it exists),
+      //     followed by any “otherBgs” as nested backgrounds.
+      backgrounds: [
+        ...(mainBgLayer ? [mainBgLayer] : []),
+        ...otherBgs.map((bg, i) => ({
+          ...bg,
+          id: `bg-${idx}-${i + 1}`,        // ids: “bg-0-1”, “bg-0-2”, etc.
+          layerType: "background",
+          timeFrame: { start: sceneStart, end: sceneStart + nestedDurationMs },
+        })),
+      ],
+
+      // 4b) Map GIF layers as “svg” with nestedDurationMs
       gifs: scene.gifs.map((gif, i) => ({
         ...gif,
         id: `gif-${idx}-${i}`,
-        layerType: 'svg',
-        timeFrame: { start: sceneStart, end: sceneEnd },
-        calculatedPosition: svgCount > 0 ? this.calculateSvgPositions(svgCount)[i] : null
+        layerType: "svg",
+        timeFrame: { start: sceneStart, end: sceneStart + nestedDurationMs },
+        calculatedPosition:
+          svgCount > 0 ? this.calculateSvgPositions(svgCount)[i] : null,
       })),
+
+      // 4c) Map animations
       animations: scene.animations.map((anim, i) => ({
         ...anim,
         id: `anim-${idx}-${i}`,
-        layerType: 'animation',
-        timeFrame: { start: sceneStart, end: sceneEnd }
+        layerType: "animation",
+        timeFrame: { start: sceneStart, end: sceneStart + nestedDurationMs },
       })),
+
+      // 4d) Map elements
       elements: scene.elements.map((el, i) => ({
         ...el,
-        layerType: 'element',
         id: `elem-${idx}-${i}`,
-        timeFrame: { start: sceneStart, end: sceneEnd }
+        layerType: "element",
+        timeFrame: { start: sceneStart, end: sceneStart + nestedDurationMs },
       })),
-      text: Array.isArray(scene.text) && scene.text.length
-        ? [{
-          id: `text-${idx}`,
-          value: scene.text[0],
-          layerType: 'text',
-          placement: {
-            x: 20,
-            y: 20,
-            width: this.canvas?.width! - 40,
-            height: undefined,
-          },
-          properties: {
-            fontSize: 24,
-            fontFamily: 'Arial',
-            fill: '#000',
-          },
-          timeFrame: { start: sceneStart, end: sceneEnd },
-        }]
-        : [],
+
+      // 4e) Map text (if any)
+      text:
+        Array.isArray(scene.text) && scene.text.length
+          ? [
+            {
+              id: `text-${idx}`,
+              value: scene.text[0],
+              layerType: "text",
+              placement: {
+                x: 20,
+                y: 20,
+                width: this.canvas?.width! - 40,
+                height: undefined,
+              },
+              properties: {
+                fontSize: 24,
+                fontFamily: "Arial",
+                fill: "#000",
+              },
+              timeFrame: { start: sceneStart, end: sceneStart + nestedDurationMs },
+            },
+          ]
+          : [],
     };
-    //@ts-ignore
+
+    // 5) Store the processed scene
     this.scenes.push(processedScene);
     this.maxTime = this.getMaxTime();
+
+    // 6) Build the SceneEditorElement for this scene, including mainBackground + nested layers
     const sceneElem = {
       id: `scene-${idx}`,
       name: `Scene ${idx + 1}`,
-      type: 'scene',
-      placement: { x: 0, y: 0, width: this.canvas?.width || 800, height: this.canvas?.height || 600 },
+      type: "scene" as const,
+      placement: {
+        x: 0,
+        y: 0,
+        width: this.canvas?.width || 800,
+        height: this.canvas?.height || 600,
+      },
       timeFrame: { start: sceneStart, end: sceneEnd },
       properties: {
         sceneIndex: idx,
+        // (a) The new “mainBackground” object (bg[0]), or null if none
+        mainBackground: mainBgLayer,
+        // (b) The entire backgrounds array, now with mainBgLayer at index 0
         backgrounds: processedScene.backgrounds,
         gifs: processedScene.gifs,
         animations: processedScene.animations,
         elements: processedScene.elements,
-        text: processedScene.text
+        text: processedScene.text,
       },
       fabricObject: undefined,
     };
-    //@ts-ignore
+
+    // 7) Push into editorElements and refresh animations
     this.editorElements.push(sceneElem);
     this.refreshAnimations();
   }
+
+
+
+
   private calculateSvgPositions(count: number): { x: number, y: number, width: number, height: number }[] {
     if (count === 0) return [];
     const canvasWidth = this.canvas?.width || 800;
@@ -800,6 +854,58 @@ export class Store {
       )
     )
   }
+
+ updateSceneDuration(sceneIndex: number, newDuration: number) {
+  const scene = this.scenes[sceneIndex];
+  if (!scene) return;
+
+  const oldStart = scene.timeFrame.start;
+  const oldEnd   = scene.timeFrame.end;
+  const updatedEnd = oldStart + newDuration;
+  const delta = updatedEnd - oldEnd; // positive → expand; negative → shrink
+
+  // 1) Update this scene’s timeframe only:
+  scene.timeFrame.end = updatedEnd;
+
+  // (no clamping of nested layers; they keep their original start/end)
+
+  // 2) Shift all subsequent scenes by the same delta:
+  for (let i = sceneIndex + 1; i < this.scenes.length; i++) {
+    const s = this.scenes[i];
+    s.timeFrame.start += delta;
+    s.timeFrame.end   += delta;
+
+    // Also shift that scene’s nested layers by delta:
+    const shiftNested = (arr?: Array<{ timeFrame: TimeFrame }>) => {
+      if (!arr) return;
+      arr.forEach((l) => {
+        l.timeFrame.start += delta;
+        l.timeFrame.end   += delta;
+      });
+    };
+    shiftNested(s.backgrounds as any);
+    shiftNested(s.gifs as any);
+    shiftNested(s.animations as any);
+    shiftNested(s.elements as any);
+    shiftNested(s.text as any);
+  }
+
+  // 3) Update the corresponding SceneEditorElement’s timeFrame:
+  const elem = this.editorElements.find(
+    (e) =>
+      e.type === "scene" &&
+      (e as any).properties.sceneIndex === sceneIndex
+  ) as SceneEditorElement | undefined;
+  if (elem) {
+    elem.timeFrame.end = updatedEnd;
+  }
+
+  // 4) Recompute the master‐timeline length:
+  this.maxTime = this.getMaxTime();
+}
+
+
+
   updateEditorElementTimeFrame(
     editorElement: EditorElement,
     timeFrame: Partial<TimeFrame>
@@ -822,187 +928,62 @@ export class Store {
     this.updateEditorElement(newEditorElement)
     this.refreshAnimations()
   }
+  updateSceneLayerTimeFrame(
+    sceneIndex: number,
+    layerId: string,
+    timeFrame: Partial<TimeFrame>
+  ) {
+    const scene = this.scenes[sceneIndex] as Scene & { timeFrame: TimeFrame };
+    if (!scene) return;
 
+    const { start: sceneStart, end: sceneEnd } = scene.timeFrame;
 
-  
- updateSceneLayerTimeFrame(
-  sceneIndex: number,
-  layerId: string,
-  timeFrame: Partial<TimeFrame>
-) {
-  const scene = this.scenes[sceneIndex] as Scene & { timeFrame: TimeFrame };
-  if (!scene) return;
-
-  const oldSceneStart = scene.timeFrame.start;
-  const oldSceneEnd = scene.timeFrame.end;
-
-  // Clamp the incoming layer timeFrame to be within current scene bounds
-  if (timeFrame.start != null && timeFrame.start < oldSceneStart) {
-    timeFrame.start = oldSceneStart;
-  }
-  if (timeFrame.end != null && timeFrame.end > oldSceneEnd) {
-    timeFrame.end = oldSceneEnd;
-  }
-
-  // Helper to update a layer inside a given array (backgrounds, gifs, etc.)
-  const tryUpdate = <T extends { id: string; timeFrame: TimeFrame }>(
-    arr: T[] | undefined
-  ): boolean => {
-    if (!arr) return false;
-    const idx = arr.findIndex((l) => l.id === layerId);
-    if (idx >= 0) {
-      arr[idx] = {
-        ...arr[idx],
-        timeFrame: {
-          ...arr[idx].timeFrame,
-          ...timeFrame,
-        },
-      };
-      return true;
+    if (timeFrame.start != null && timeFrame.start < sceneStart) {
+      timeFrame.start = sceneStart;
     }
-    return false;
-  };
-
-  // 1) Update the layer inside scene.properties
-  const updatedInsideScene =
-    tryUpdate(scene.backgrounds as any) ||
-    tryUpdate(scene.gifs as any) ||
-    tryUpdate(scene.animations as any) ||
-    tryUpdate(scene.elements as any) ||
-    tryUpdate(scene.text as any);
-
-  // Also update the corresponding layer inside editorElements (SceneEditorElement)
-  if (updatedInsideScene) {
-    const elem = this.editorElements.find(
-      (e) =>
-        e.type === 'scene' &&
-        (e as SceneEditorElement).properties.sceneIndex === sceneIndex
-    ) as SceneEditorElement | undefined;
-
-    if (elem) {
-      const p = elem.properties as any;
-      tryUpdate(p.backgrounds as any) ||
-        tryUpdate(p.gifs as any) ||
-        tryUpdate(p.animations as any) ||
-        tryUpdate(p.elements as any) ||
-        tryUpdate(p.text as any);
+    if (timeFrame.end != null && timeFrame.end > sceneEnd) {
+      timeFrame.end = sceneEnd;
     }
-
-    // 2) Determine if this layer's new end extends beyond the old scene end
-    const newLayerEndCandidates = [
-      ...(scene.backgrounds || []),
-      ...(scene.gifs || []),
-      ...(scene.animations || []),
-      ...(scene.elements || []),
-      ...(scene.text || []),
-    ]
-      .filter((l) => l.id === layerId)
-      .map((l) => l.timeFrame.end);
-
-    if (newLayerEndCandidates.length > 0) {
-      const newLayerEnd = newLayerEndCandidates[0];
-      if (newLayerEnd > oldSceneEnd) {
-        const delta = newLayerEnd - oldSceneEnd;
-
-        // 3) Expand THIS scene's end
-        scene.timeFrame.end = newLayerEnd;
-        this.maxTime = this.getMaxTime();
-
-        // Also update the SceneEditorElement timeFrame
-        const sceneElem = this.editorElements.find(
-          (e) =>
-            e.type === 'scene' &&
-            (e as SceneEditorElement).properties.sceneIndex === sceneIndex
-        ) as SceneEditorElement | undefined;
-
-        if (sceneElem) {
-          sceneElem.timeFrame.end = newLayerEnd;
-
-          const props = (sceneElem as SceneEditorElement).properties;
-          const bumpNested = (arr: any[] | undefined) => {
-            if (!arr) return;
-            arr.forEach((l) => {
-              l.timeFrame = {
-                start: l.timeFrame.start,
-                end:
-                  l.timeFrame.end > oldSceneEnd
-                    ? l.timeFrame.end + delta
-                    : l.timeFrame.end,
-              };
-            });
-          };
-          bumpNested(props.backgrounds);
-          bumpNested(props.gifs);
-          bumpNested(props.animations);
-          bumpNested(props.elements);
-          bumpNested(props.text);
-        }
-
-        // 4) Shift all subsequent scenes forward by delta
-        for (let j = sceneIndex + 1; j < this.scenes.length; j++) {
-          const nextScene = this.scenes[j];
-          nextScene.timeFrame = {
-            start: nextScene.timeFrame.start + delta,
-            end: nextScene.timeFrame.end + delta,
-          };
-
-          // Update all layers inside that scene
-          const bumpNested = (arr: any[] | undefined) => {
-            if (!arr) return;
-            arr.forEach((l) => {
-              l.timeFrame = {
-                start: l.timeFrame.start + delta,
-                end: l.timeFrame.end + delta,
-              };
-            });
-          };
-          bumpNested(nextScene.backgrounds);
-          bumpNested(nextScene.gifs);
-          bumpNested(nextScene.animations);
-          bumpNested(nextScene.elements);
-          bumpNested(nextScene.text);
-
-          // Also update the matching SceneEditorElement
-          const nextElem = this.editorElements.find(
-            (e) =>
-              e.type === 'scene' &&
-              (e as SceneEditorElement).properties.sceneIndex === j
-          ) as SceneEditorElement | undefined;
-
-          if (nextElem) {
-            nextElem.timeFrame = {
-              start: nextElem.timeFrame.start + delta,
-              end: nextElem.timeFrame.end + delta,
-            };
-            const props = (nextElem as SceneEditorElement).properties;
-            bumpNested(props.backgrounds);
-            bumpNested(props.gifs);
-            bumpNested(props.animations);
-            bumpNested(props.elements);
-            bumpNested(props.text);
+    const tryUpdate = <T extends { id: string; timeFrame: TimeFrame }>(
+      arr: T[] | undefined
+    ): boolean => {
+      if (!arr) return false;
+      const idx = arr.findIndex(l => l.id === layerId);
+      if (idx >= 0) {
+        arr[idx] = {
+          ...arr[idx],
+          timeFrame: {
+            ...arr[idx].timeFrame,
+            ...timeFrame
           }
-        }
-
-        // 5) Recompute maxTime
-        this.maxTime = this.getMaxTime();
+        };
+        return true;
       }
+      return false;
+    };
+    if (
+      tryUpdate(scene.backgrounds as any) ||
+      tryUpdate(scene.gifs as any) ||
+      tryUpdate(scene.animations as any) ||
+      tryUpdate(scene.elements as any) ||
+      tryUpdate(scene.text as any)
+    ) {
+      const elem = this.editorElements.find(
+        e => e.type === 'scene' && e.properties.sceneIndex === sceneIndex
+      ) as SceneEditorElement | undefined;
+      if (elem) {
+        const p = elem.properties as any;
+        tryUpdate(p.backgrounds as any) ||
+          tryUpdate(p.gifs as any) ||
+          tryUpdate(p.animations as any) ||
+          tryUpdate(p.elements as any) ||
+          tryUpdate(p.text as any);
+      }
+      this.updateVideoElements();
+      this.updateAudioElements();
+      this.refreshAnimations();
     }
-
-    // Finally, refresh any playback layers/animations
-    this.updateVideoElements();
-    this.updateAudioElements();
-    this.refreshAnimations();
   }
-}
-
-
-
-
-
-
-
-
-
   addEditorElement(editorElement: EditorElement) {
     console.log('Adding new element:', editorElement);
     const activeScene = this.editorElements.find(
@@ -1580,35 +1561,35 @@ export class Store {
       })
       .catch((error) => console.error(' Error fetching SVG:', error))
   }
- addAudio(index: number) {
-  const audioElement = document.getElementById(`audio-${index}`);
-  if (!isHtmlAudioElement(audioElement)) return;
+  addAudio(index: number) {
+    const audioElement = document.getElementById(`audio-${index}`);
+    if (!isHtmlAudioElement(audioElement)) return;
 
-  // Use the exact same ID when you later look it up
-  const domId = `audio-${index}`;
-  const audioDurationMs = audioElement.duration * 1000;
-  const id = getUid();
 
-  this.addEditorElement({
-    id,
-    name: `Media(audio) ${index + 1}`,
-    type: 'audio',
-    placement: {
-      x: 0,
-      y: 0,
-      width: 100,
-      height: 100,
-      rotation: 0,
-      scaleX: 1,
-      scaleY: 1,
-    },
-    timeFrame: this.getCurrentTimeFrame(audioDurationMs),
-    properties: {
-      elementId: domId, 
-      src: audioElement.src,
-    },
-  });
-}
+    const domId = `audio-${index}`;
+    const audioDurationMs = audioElement.duration * 1000;
+    const id = getUid();
+
+    this.addEditorElement({
+      id,
+      name: `Media(audio) ${index + 1}`,
+      type: 'audio',
+      placement: {
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        rotation: 0,
+        scaleX: 1,
+        scaleY: 1,
+      },
+      timeFrame: this.getCurrentTimeFrame(audioDurationMs),
+      properties: {
+        elementId: domId,
+        src: audioElement.src,
+      },
+    });
+  }
 
   addText(options: { text: string; fontSize: number; fontWeight: number }) {
     const id = getUid()
@@ -2235,10 +2216,6 @@ export class Store {
           })
           break
         }
-
-
-
-
         case 'scene': {
           if (element.properties.sceneIndex !== this.activeSceneIndex) {
             break;
@@ -2613,7 +2590,6 @@ export class Store {
           }
           break;
         }
-
 
         default: {
           throw new Error('Not implemented')
