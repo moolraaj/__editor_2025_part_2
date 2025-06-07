@@ -71,22 +71,8 @@ export class Store {
     this.selectedVideoFormat = 'mp4'
     makeAutoObservable(this)
   }
-  getMaxTime() {
-    // 1) collect every end‐time: scenes and non‐scene elements
-    const sceneEnds = this.scenes.map(s => s.timeFrame.end);
-    const elemEnds = this.editorElements
-      .filter(e => e.type !== "scene")
-      .map(e => e.timeFrame.end);
-
-    // 2) merge them
-    const allEnds = [...sceneEnds, ...elemEnds];
-
-    // 3) return the largest, or fall back
-    if (allEnds.length > 0) {
-      return Math.max(...allEnds);
-    } else {
-      return GLOBAL_ELEMENTS_TIME * 1000;
-    }
+ getMaxTime() {
+    return GLOBAL_ELEMENTS_TIME * 1000;
   }
 
   setActiveScene(index: number) {
