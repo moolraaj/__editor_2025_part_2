@@ -847,3 +847,342 @@
           );
         });
         
+
+
+
+        "use client";
+        import React, { useEffect, useRef, useState, useContext } from "react";
+        import { observer } from "mobx-react-lite";
+        import { StoreContext } from "@/store";
+        import DragableView from "./DragableView";
+        import { FaCopy, FaPaste, FaTrash, FaEllipsisV, FaCut } from "react-icons/fa";
+        import type { EditorElement, SceneEditorElement, SceneLayer, TimeFrame } from "@/types";
+        import { fabric } from 'fabric';
+        
+        interface TimeFrameViewProps {
+          element: EditorElement;
+          setCurrentSceneIndex?: React.Dispatch<React.SetStateAction<number>>;
+          handleSceneClick?: (idx: number) => void;
+        }
+        
+        export const TimeFrameView = observer((props: TimeFrameViewProps) => {
+          const store = useContext(StoreContext);
+          const { element, setCurrentSceneIndex, handleSceneClick } = props;
+          const [isShow, setIsShow] = useState(false);
+          const dropdownRef = useRef<HTMLDivElement>(null);
+        
+          useEffect(() => {
+            const handleKeyDown = (e: KeyboardEvent) => {
+              const cmd = e.ctrlKey || e.metaKey, key = e.key.toLowerCase();
+              if (cmd && key === "x") { e.preventDefault(); store.cutElement(); }
+              else if (cmd && key === "c") { e.preventDefault(); store.copyElement(); }
+              else if (cmd && key === "v") { e.preventDefault(); store.pasteElement(); }
+              else if (cmd && key === "/") { e.preventDefault(); store.splitElement(); }
+              else if (e.key === "delete") { e.preventDefault(); store.deleteElement(); }
+            };
+            window.addEventListener("keydown", handleKeyDown);
+            return () => window.removeEventListener("keydown", handleKeyDown);
+          }, [store]);
+        
+          if (element.type === "scene") {
+            const scene = element as SceneEditorElement;
+            const sceneStart = scene.timeFrame.start;
+            const sceneEnd = scene.timeFrame.end;
+            const sceneDuration = sceneEnd - sceneStart;
+            const fabricLayers = Array.isArray(scene.fabricObject)
+              ? (scene.fabricObject as fabric.Object[])
+              : [];
+        
+            const sceneLayers: SceneLayer[] = [
+              ...(scene.properties.backgrounds || []).map(bg => ({ ...bg, layerType: "background" as const, timeFrame: { ...bg.timeFrame } })),
+              ...(scene.properties.gifs || []).map(gf => ({ ...gf, layerType: "svg" as const, timeFrame: { ...gf.timeFrame } })),
+              ...(scene.properties.animations || []).map(an => ({ ...an, layerType: "animation" as const, timeFrame: { ...an.timeFrame } })),
+              ...(scene.properties.elements || []).map(el => ({ ...el, layerType: "element" as const, timeFrame: { ...el.timeFrame } })),
+              ...(Array.isArray(scene.properties.text) ? scene.properties.text.map(el => ({
+                ...el,
+                layerType: "text" as const,
+                timeFrame: { ...el.timeFrame }
+              })) : []),
+            ];
+        
+            const [offsets, setOffsets] = useState(
+              sceneLayers.map(l => l.timeFrame.start - sceneStart)
+            );
+        
+            const handleLayerChange = (
+              idx: number,
+              rawValue: number,
+              isEnd: boolean
+            ) => {
+              const layer = sceneLayers[idx];
+              const oldTF = layer.timeFrame;
+              const absTime = Math.min(
+                Math.max(sceneStart, sceneStart + rawValue),
+                sceneEnd
+              );
+              const newTF: TimeFrame = isEnd
+                ? { start: oldTF.start, end: absTime }
+                : { start: absTime, end: oldTF.end };
+              setOffsets(ofs =>
+                ofs.map((o, i) => (i === idx ? newTF.start - sceneStart : o))
+              );
+              store.updateSceneLayerTimeFrame(
+                scene.properties.sceneIndex,
+                layer.id,
+                newTF
+              );
+            };
+        
+            const handleSceneDurationChange = (newEnd: number) => {
+              // Calculate new duration
+              const newDuration = newEnd - sceneStart;
+              
+              // Minimum duration check (e.g., 100ms)
+              if (newDuration < 100) return;
+              
+              // Update scene duration in store
+              store.updateSceneDuration(scene.properties.sceneIndex, newDuration);
+            };
+        
+            const handleSceneMove = (newStart: number) => {
+              const duration = sceneEnd - sceneStart;
+              store.updateSceneTimeFrame(scene.properties.sceneIndex, {
+                start: newStart,
+                end: newStart + duration
+              });
+            };
+        
+            return (
+              <div className="space-y-2">
+          
+                <div className="relative w-full h-[30px] my-1 flex items-center bg-blue-100 rounded">
+               
+                  <DragableView
+                    className="z-20 cursor-ew-resize absolute h-full"
+                    value={sceneStart}
+                    total={store.maxTime}
+                    onChange={handleSceneMove}
+                    style={{ left: `0%`, width: "10px" }}
+                  >
+                    <div className="bg-white border-2 border-blue-600 w-full h-full rounded-l" />
+                  </DragableView>
+        
+                
+                  <DragableView
+                    className="cursor-move absolute h-full"
+                    value={sceneStart}
+                    total={store.maxTime}
+                    onChange={(val) => handleSceneMove(val)}
+                    style={{ 
+                      left: `0%`, 
+                      width: `${(sceneDuration / store.maxTime) * 100}%`,
+                      backgroundColor: '#3b82f6',
+                    }}
+                  >
+                    <div className="h-full text-white text-xs px-2 leading-[30px] font-bold truncate">
+                      SCENE {scene.properties.sceneIndex + 1} - {Math.round(sceneDuration/1000 * 10)/10}s
+                    </div>
+                  </DragableView>
+        
+          
+                  <DragableView
+                    className="z-20 cursor-ew-resize absolute h-full"
+                    value={sceneEnd}
+                    total={store.maxTime}
+                    onChange={handleSceneDurationChange}
+                    style={{ left: `${(sceneDuration / store.maxTime) * 100}%`, width: "10px" }}
+                  >
+                    <div className="bg-white border-2 border-blue-600 w-full h-full rounded-r" />
+                  </DragableView>
+                </div>
+        
+          
+                {sceneLayers.map((layer, idx) => {
+                  const tf = layer.timeFrame;
+                  const leftPct = ((tf.start - sceneStart) / sceneDuration) * 100;
+                  const widthPct = ((tf.end - tf.start) / sceneDuration) * 100;
+                  const rightPct = leftPct + widthPct;
+                  const isSelected = store.selectedElement?.id === layer.id;
+        
+                  return (
+                    <div
+                      key={`${layer.layerType}-${layer.id}`}
+                      className="relative w-full h-[25px] my-1 flex items-center"
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        store.setActiveScene(scene.properties.sceneIndex);
+                        setCurrentSceneIndex?.(scene.properties.sceneIndex);
+                        handleSceneClick?.(scene.properties.sceneIndex);
+        
+                        let targetElement: EditorElement | undefined;
+                        let targetFabricObject: fabric.Object | undefined;
+        
+                        if (layer.layerType === "background") {
+                          targetElement = store.editorElements.find(
+                            e => e.type === "scene" &&
+                              (e as SceneEditorElement).properties.sceneIndex === scene.properties.sceneIndex
+                          );
+                          targetFabricObject = targetElement?.fabricObject as fabric.Object | undefined;
+                        }
+                        else if (layer.layerType === "element") {
+                          targetElement = store.editorElements.find(e => e.id === layer.id);
+                          targetFabricObject = targetElement?.fabricObject as fabric.Object | undefined;
+                        }
+                        else {
+                          targetElement = store.editorElements.find(
+                            e => e.type === "scene" &&
+                              (e as SceneEditorElement).properties.sceneIndex === scene.properties.sceneIndex
+                          );
+        
+                          if (targetElement?.fabricObject) {
+                            if (Array.isArray(targetElement.fabricObject)) {
+                              targetFabricObject = targetElement.fabricObject.find(
+                                obj => obj.data?.elementId === layer.id
+                              );
+                            } else {
+                              targetFabricObject = targetElement.fabricObject;
+                            }
+                          }
+                        }
+        
+                        if (targetElement) {
+                          store.setSelectedElement(targetElement);
+        
+                          if (store.canvas) {
+                            store.canvas.discardActiveObject();
+                            if (targetFabricObject) {
+                              targetFabricObject.set({
+                                selectable: true,
+                                evented: true
+                              });
+                              store.canvas.setActiveObject(targetFabricObject);
+                              targetFabricObject.bringToFront();
+                              store.canvas.viewportCenterObject(targetFabricObject);
+                            }
+                            store.canvas.requestRenderAll();
+                          }
+                        }
+                      }}
+                    >
+                      <DragableView
+                        className="z-10 cursor-ew-resize absolute h-full"
+                        value={tf.start - sceneStart}
+                        total={sceneDuration}
+                        onChange={val => handleLayerChange(idx, val, false)}
+                        style={{ left: `${leftPct}%`, width: "10px" }}
+                      >
+                        <div className="bg-white border-2 border-blue-400 w-full h-full" />
+                      </DragableView>
+        
+                      <DragableView
+                        className="cursor-grab absolute h-full"
+                        value={tf.start - sceneStart}
+                        total={sceneDuration}
+                        onChange={val => handleLayerChange(idx, val, false)}
+                        style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                      >
+                        <div
+                          className={`h-full text-white text-xs px-2 leading-[25px] truncate ${isSelected ? "ring-2 ring-white" : ""
+                            } ${layer.layerType === "background"
+                              ? "bg-green-600"
+                              : layer.layerType === "svg"
+                                ? "bg-purple-600"
+                                : layer.layerType === "animation"
+                                  ? "bg-yellow-600"
+                                  : "bg-gray-600"
+                            }`}
+                        >
+                          <strong>{layer.layerType.toUpperCase()} </strong>
+                          {layer.layerType === 'background' ? layer.name : ''}
+                          {layer.layerType === 'svg' ? layer.tags[0] : ''}
+                          {layer.layerType === 'element' ? layer.type : ''}
+                          {layer.layerType === 'text' ? layer.type : ''}
+                        </div>
+                      </DragableView>
+        
+                      <DragableView
+                        className="z-10 cursor-ew-resize absolute h-full"
+                        value={tf.end - sceneStart}
+                        total={sceneDuration}
+                        onChange={val => handleLayerChange(idx, val, true)}
+                        style={{ left: `${rightPct}%`, width: "10px" }}
+                      >
+                        <div className="bg-white border-2 border-blue-400 w-full h-full" />
+                      </DragableView>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          }
+        
+         
+          const isSelected = store.selectedElement?.id === element.id;
+          const { start, end } = element.timeFrame;
+          const duration = end - start;
+          const leftPct = (start / store.maxTime) * 100;
+          const widthPct = (duration / store.maxTime) * 100;
+        
+          return (
+            <div
+              className="relative w-full h-[25px] my-2"
+              onClick={() => store.setSelectedElement(element)}
+            >
+              <DragableView
+                className="z-10 cursor-ew-resize absolute h-full"
+                value={start}
+                total={store.maxTime}
+                onChange={v => store.updateEditorElementTimeFrame(element, { start: v })}
+                style={{ left: `${leftPct}%`, width: "10px" }}
+              >
+                <div className="bg-white border-2 border-blue-400 w-full h-full" />
+              </DragableView>
+        
+              <DragableView
+                className="absolute h-full cursor-col-resize"
+                value={start}
+                total={store.maxTime}
+                onChange={v =>
+                  store.updateEditorElementTimeFrame(element, { start: v, end: v + duration })
+                }
+                style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+              >
+                <div className={`h-full w-full text-white text-xs px-2 leading-[25px] ${isSelected ? "bg-blue-600" : "bg-gray-600"
+                  }`}>
+                  {element.name}
+                  <div className="absolute right-1 top-1/2 transform -translate-y-1/2">
+                    <button className="text-white hover:text-gray-200" onClick={e => { e.stopPropagation(); setIsShow(!isShow); }}>
+                      <FaEllipsisV size={12} />
+                    </button>
+                    {isShow && (
+                      <div ref={dropdownRef} className="absolute right-0 mt-6 w-48 bg-white shadow-lg rounded-md z-50" onClick={e => e.stopPropagation()}>
+                        <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center" onClick={() => { store.cutElement(); setIsShow(false); }}>
+                          <FaCut className="text-blue-500 mr-2" /> Cut
+                        </button>
+                        <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center" onClick={() => { store.copyElement(); setIsShow(false); }}>
+                          <FaCopy className="text-blue-500 mr-2" /> Copy
+                        </button>
+                        <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center" onClick={() => { store.pasteElement(); setIsShow(false); }}>
+                          <FaPaste className="text-blue-500 mr-2" /> Paste
+                        </button>
+                        <button className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center" onClick={() => { store.deleteElement(); setIsShow(false); }}>
+                          <FaTrash className="text-red-500 mr-2" /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </DragableView>
+        
+              <DragableView
+                className="z-10 cursor-ew-resize absolute h-full"
+                value={end}
+                total={store.maxTime}
+                onChange={v => store.updateEditorElementTimeFrame(element, { end: v })}
+                style={{ left: `${(end / store.maxTime) * 100}%`, width: "10px" }}
+              >
+                <div className="bg-white border-2 border-blue-400 w-full h-full" />
+              </DragableView>
+            </div>
+          );
+        });

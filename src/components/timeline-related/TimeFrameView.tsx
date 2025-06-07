@@ -1,4 +1,3 @@
-// File: components/timeline-related/TimeFrameView.tsx
 "use client";
 
 import React, { useEffect, useRef, useState, useContext } from "react";
@@ -6,7 +5,12 @@ import { observer } from "mobx-react-lite";
 import { StoreContext } from "@/store";
 import DragableView from "./DragableView";
 import { FaCopy, FaPaste, FaTrash, FaEllipsisV, FaCut } from "react-icons/fa";
-import type { EditorElement, SceneEditorElement, SceneLayer, TimeFrame } from "@/types";
+import type {
+  EditorElement,
+  SceneEditorElement,
+  SceneLayer,
+  TimeFrame,
+} from "@/types";
 import { fabric } from "fabric";
 
 interface TimeFrameViewProps {
@@ -21,135 +25,108 @@ export const TimeFrameView = observer((props: TimeFrameViewProps) => {
   const [isShow, setIsShow] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown when clicking outside
+  // keyboard shortcuts
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsShow(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Global keyboard shortcuts
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent) => {
       const cmd = e.ctrlKey || e.metaKey;
-      const key = e.key.toLowerCase();
-      if (cmd && key === "x") {
-        e.preventDefault();
-        store.cutElement();
-      } else if (cmd && key === "c") {
-        e.preventDefault();
-        store.copyElement();
-      } else if (cmd && key === "v") {
-        e.preventDefault();
-        store.pasteElement();
-      } else if (cmd && key === "/") {
-        e.preventDefault();
-        store.splitElement();
-      } else if (e.key === "Delete") {
-        e.preventDefault();
-        store.deleteElement();
-      }
+      const k = e.key.toLowerCase();
+      if (cmd && k === "x") e.preventDefault(), store.cutElement();
+      else if (cmd && k === "c") e.preventDefault(), store.copyElement();
+      else if (cmd && k === "v") e.preventDefault(), store.pasteElement();
+      else if (cmd && k === "/") e.preventDefault(), store.splitElement();
+      else if (e.key === "Delete") e.preventDefault(), store.deleteElement();
     };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [store]);
 
+  // SCENE timeline
   if (element.type === "scene") {
     const scene = element as SceneEditorElement;
-    const sceneIndex = scene.properties.sceneIndex;
-    const sceneStart = scene.timeFrame.start;
-    const sceneEnd = scene.timeFrame.end;
+    const idx = scene.properties.sceneIndex;
+    const storeScene = store.scenes[idx];
+
+    const sceneStart = storeScene.timeFrame.start;
+    const sceneEnd = storeScene.timeFrame.end;
     const sceneDuration = sceneEnd - sceneStart;
+    const fabricObjs = Array.isArray(scene.fabricObject)
+      ? (scene.fabricObject as fabric.Object[])
+      : [];
 
-    const sceneLayers: SceneLayer[] = [
-      ...(scene.properties.backgrounds || []).map((bg) => ({
-        ...bg,
-        layerType: "background" as const,
-        timeFrame: { ...bg.timeFrame },
-      })),
-      ...(scene.properties.gifs || []).map((gf) => ({
-        ...gf,
-        layerType: "svg" as const,
-        timeFrame: { ...gf.timeFrame },
-      })),
-      ...(scene.properties.animations || []).map((an) => ({
-        ...an,
-        layerType: "animation" as const,
-        timeFrame: { ...an.timeFrame },
-      })),
-      ...(scene.properties.elements || []).map((el) => ({
-        ...el,
-        layerType: "element" as const,
-        timeFrame: { ...el.timeFrame },
-      })),
-      ...(Array.isArray(scene.properties.text)
-        ? scene.properties.text.map((tx) => ({
-            ...tx,
-            layerType: "text" as const,
-            timeFrame: { ...tx.timeFrame },
-          }))
-        : []),
-    ];
+    // build layers array
+    const layers: SceneLayer[] = [];
+    const mainBg = scene.properties.mainBackground;
+    if (mainBg) {
+      layers.push({
+        id: mainBg.id,
+        layerType: "mainBackground",
+        timeFrame: { start: sceneStart, end: sceneEnd },
+        name: mainBg.name,
+        ...mainBg,
+      } as SceneLayer);
+    }
+    (scene.properties.backgrounds || []).forEach((bg) =>
+      layers.push({ ...bg, layerType: "background", timeFrame: { ...bg.timeFrame } })
+    );
+    (scene.properties.gifs || []).forEach((gf) =>
+      layers.push({ ...gf, layerType: "svg", timeFrame: { ...gf.timeFrame } })
+    );
+    (scene.properties.animations || []).forEach((an) =>
+      layers.push({ ...an, layerType: "animation", timeFrame: { ...an.timeFrame } })
+    );
+    (scene.properties.elements || []).forEach((el) =>
+      layers.push({ ...el, layerType: "element", timeFrame: { ...el.timeFrame } })
+    );
+    if (Array.isArray(scene.properties.text)) {
+      scene.properties.text.forEach((tx) =>
+        layers.push({ ...tx, layerType: "text", timeFrame: { ...tx.timeFrame } })
+      );
+    }
 
-    const handleLeftResize = (idx: number, rawValue: number) => {
-      const layer = sceneLayers[idx];
-      const oldTF = layer.timeFrame;
-      const minStart = idx === 0 ? sceneStart : Math.max(sceneStart, oldTF.start);
-      const maxStart = Math.min(oldTF.end - 1, sceneEnd);
-      
-      const newStart = Math.max(minStart, Math.min(maxStart, sceneStart + rawValue));
-      const newTF: TimeFrame = { start: newStart, end: oldTF.end };
-      store.updateSceneLayerTimeFrame(sceneIndex, layer.id, newTF);
-    };
+    // offsets state
+    const [offs, setOffs] = useState(
+      layers.map((l) => l.timeFrame.start - sceneStart)
+    );
 
-    const handleRightResize = (idx: number, rawValue: number) => {
-      const layer = sceneLayers[idx];
-      const oldTF = layer.timeFrame;
-      const candidateEnd = sceneStart + rawValue;
-
-      if (idx === 0 && layer.layerType === "background") {
-        const newDuration = Math.max(1, candidateEnd - sceneStart);
-        store.updateSceneDuration(sceneIndex, newDuration);
-        
-        // Update background to fill the entire scene
-        const updatedScene = store.scenes[sceneIndex];
-        const finalSceneEnd = updatedScene.timeFrame.end;
-        const newTF: TimeFrame = { start: sceneStart, end: finalSceneEnd };
-        store.updateSceneLayerTimeFrame(sceneIndex, layer.id, newTF);
+    // onLayerChange: mainBackground adjusts scene timeframe, others adjust layer
+    const onLayerChange = (
+      i: number,
+      raw: number,
+      isEnd: boolean
+    ) => {
+      const l = layers[i];
+      if (l.layerType === "mainBackground") {
+        // update scene timeframe only
+        const newEnd = Math.min(
+          Math.max(sceneStart, sceneStart + raw),
+          store.maxTime
+        );
+        store.updateSceneAndShiftFollowing(idx, newEnd - sceneStart);
       } else {
-        const minEnd = oldTF.start + 1;
-        const maxEnd = sceneEnd;
-        const clampedEnd = Math.max(minEnd, Math.min(maxEnd, candidateEnd));
-        const newTF: TimeFrame = { start: oldTF.start, end: clampedEnd };
-        store.updateSceneLayerTimeFrame(sceneIndex, layer.id, newTF);
+        // update individual layer
+        const old = l.timeFrame;
+        const abs = Math.min(
+          Math.max(sceneStart, sceneStart + raw),
+          sceneEnd
+        );
+        const newTf: TimeFrame = isEnd
+          ? { start: old.start, end: abs }
+          : { start: abs, end: old.end };
+        setOffs((a) =>
+          a.map((v, j) => (j === i ? newTf.start - sceneStart : v))
+        );
+        store.updateSceneLayerTimeFrame(idx, l.id, newTf);
       }
-    };
-
-    const handleBarDrag = (idx: number, rawValue: number) => {
-      const layer = sceneLayers[idx];
-      const oldTF = layer.timeFrame;
-      const width = oldTF.end - oldTF.start;
-      const minStart = sceneStart;
-      const maxStart = sceneEnd - width;
-      
-      const newStart = Math.max(minStart, Math.min(maxStart, sceneStart + rawValue));
-      const newEnd = newStart + width;
-      const newTF: TimeFrame = { start: newStart, end: newEnd };
-      store.updateSceneLayerTimeFrame(sceneIndex, layer.id, newTF);
     };
 
     return (
       <div className="space-y-2">
-        {sceneLayers.map((layer, idx) => {
+        {layers.map((layer, i) => {
           const tf = layer.timeFrame;
-          const leftPct = ((tf.start - sceneStart) / sceneDuration) * 100;
-          const widthPct = ((tf.end - tf.start) / sceneDuration) * 100;
-          const rightPct = leftPct + widthPct;
-          const isSelected = store.selectedElement?.id === layer.id;
+          const left = ((tf.start - sceneStart) / sceneDuration) * 100;
+          const width = ((tf.end - tf.start) / sceneDuration) * 100;
+          const right = left + width;
+          const sel = store.selectedElement?.id === layer.id;
 
           return (
             <div
@@ -157,132 +134,77 @@ export const TimeFrameView = observer((props: TimeFrameViewProps) => {
               className="relative w-full h-[25px] my-1 flex items-center"
               onClick={(e) => {
                 e.stopPropagation();
-                store.setActiveScene(sceneIndex);
-                setCurrentSceneIndex?.(sceneIndex);
-                handleSceneClick?.(sceneIndex);
-
-                let targetElement: EditorElement | undefined;
-                let targetFabricObject: fabric.Object | undefined;
-
-                if (layer.layerType === "background") {
-                  targetElement = store.editorElements.find(
-                    (e) =>
-                      e.type === "scene" &&
-                      (e as SceneEditorElement).properties.sceneIndex ===
-                        sceneIndex
+                store.setActiveScene(idx);
+                setCurrentSceneIndex?.(idx);
+                handleSceneClick?.(idx);
+                if (layer.layerType === "element") {
+                  const el = store.editorElements.find(
+                    (x) => x.id === layer.id
                   );
-                  targetFabricObject =
-                    targetElement?.fabricObject as fabric.Object | undefined;
-                } else if (layer.layerType === "element") {
-                  targetElement = store.editorElements.find(
-                    (e) => e.id === layer.id
-                  );
-                  targetFabricObject =
-                    targetElement?.fabricObject as fabric.Object | undefined;
+                  if (el) {
+                    store.setSelectedElement(el);
+                    const obj = Array.isArray(el.fabricObject)
+                      ? el.fabricObject[0]
+                      : el.fabricObject;
+                    obj && store.canvas?.setActiveObject(obj);
+                  }
                 } else {
-                  targetElement = store.editorElements.find(
-                    (e) =>
-                      e.type === "scene" &&
-                      (e as SceneEditorElement).properties.sceneIndex ===
-                        sceneIndex
-                  );
-                  if (targetElement?.fabricObject) {
-                    if (Array.isArray(targetElement.fabricObject)) {
-                      targetFabricObject = (
-                        targetElement.fabricObject as fabric.Object[]
-                      ).find((obj) => obj.data?.elementId === layer.id);
-                    } else {
-                      targetFabricObject = targetElement.fabricObject;
-                    }
-                  }
+                  store.setSelectedElement(scene);
+                  fabricObjs[i] && store.canvas?.setActiveObject(fabricObjs[i]);
                 }
-
-                if (targetElement) {
-                  store.setSelectedElement(targetElement);
-                  if (store.canvas && targetFabricObject) {
-                    store.canvas.discardActiveObject();
-                    targetFabricObject.set({
-                      selectable: true,
-                      evented: true,
-                    });
-                    store.canvas.setActiveObject(targetFabricObject);
-                    targetFabricObject.bringToFront();
-                    store.canvas.viewportCenterObject(targetFabricObject);
-                    store.canvas.requestRenderAll();
-                  }
-                }
+                store.canvas?.requestRenderAll();
               }}
             >
+              {/* left handle */}
               <DragableView
                 className="z-10 cursor-ew-resize absolute h-full"
                 value={tf.start - sceneStart}
-                total={sceneDuration}
-                onChange={(val) => handleLeftResize(idx, val)}
-                style={{ left: `${leftPct}%`, width: "10px" }}
-                bounds={{
-                  min: idx === 0 ? 0 : tf.start - sceneStart,
-                  max: tf.end - sceneStart - 1
-                }}
+                total={layer.layerType === "mainBackground" ? store.maxTime : sceneDuration}
+                onChange={(v) => onLayerChange(i, v, false)}
+                style={{ left: `${left}%`, width: "10px" }}
               >
                 <div className="bg-white border-2 border-blue-400 w-full h-full" />
               </DragableView>
 
+              {/* bar */}
               <DragableView
-                className="absolute h-full cursor-grab"
+                className="cursor-grab absolute h-full"
                 value={tf.start - sceneStart}
-                total={sceneDuration}
-                onChange={(val) => handleBarDrag(idx, val)}
-                style={{
-                  left: `${leftPct}%`,
-                  width: `${widthPct}%`,
-                }}
-                bounds={{
-                  min: 0,
-                  max: sceneDuration - (tf.end - tf.start)
-                }}
+                total={layer.layerType === "mainBackground" ? store.maxTime : sceneDuration}
+                onChange={(v) => onLayerChange(i, v, false)}
+                style={{ left: `${left}%`, width: `${width}%` }}
               >
                 <div
-                  className={`relative h-full text-white text-xs px-2 leading-[25px] truncate ${
-                    isSelected ? "ring-2 ring-white" : ""
+                  className={`h-full text-white text-xs px-2 leading-[25px] truncate ${
+                    sel ? "ring-2 ring-white" : ""
                   } ${
-                    layer.layerType === "background"
+                    layer.layerType === "mainBackground"
+                      ? "bg-blue-700"
+                      : layer.layerType === "background"
                       ? "bg-green-600"
                       : layer.layerType === "svg"
                       ? "bg-purple-600"
                       : layer.layerType === "animation"
                       ? "bg-yellow-600"
-                      : layer.layerType === "element"
-                      ? "bg-blue-600"
                       : "bg-gray-600"
                   }`}
                 >
-                  <strong>{layer.layerType.toUpperCase()} </strong>
-                  {layer.layerType === "background"
-                    ? layer.name
-                    : layer.layerType === "svg"
-                    ? layer.tags?.[0] || ""
-                    : layer.layerType === "element"
-                    ? layer.type
-                    : layer.layerType === "text"
-                    ? layer.type
-                    : ""}
-
-                  <span className="absolute right-1 top-1/2 transform -translate-y-1/2 text-[10px] text-white/80">
-                    {tf.start}–{tf.end}
-                  </span>
+                  <strong>
+                    {layer.layerType === "mainBackground"
+                      ? "MAIN BG"
+                      : layer.layerType.toUpperCase()}
+                  </strong>{" "}
+                  {layer.name || layer.id}
                 </div>
               </DragableView>
 
+              {/* right handle */}
               <DragableView
                 className="z-10 cursor-ew-resize absolute h-full"
                 value={tf.end - sceneStart}
-                total={sceneDuration}
-                onChange={(val) => handleRightResize(idx, val)}
-                style={{ left: `${rightPct}%`, width: "10px" }}
-                bounds={{
-                  min: tf.start - sceneStart + 1,
-                  max: idx === 0 ? sceneDuration : sceneDuration
-                }}
+                total={layer.layerType === "mainBackground" ? store.maxTime : sceneDuration}
+                onChange={(v) => onLayerChange(i, v, true)}
+                style={{ left: `${right}%`, width: "10px" }}
               >
                 <div className="bg-white border-2 border-blue-400 w-full h-full" />
               </DragableView>
@@ -293,18 +215,19 @@ export const TimeFrameView = observer((props: TimeFrameViewProps) => {
     );
   }
 
-  // Non-scene elements
-  const isSelected = store.selectedElement?.id === element.id;
+  // NON-SCENE
+  const selElem = store.selectedElement?.id === element.id;
   const { start, end } = element.timeFrame;
-  const duration = end - start;
-  const leftPct = (start / store.maxTime) * 100;
-  const widthPct = (duration / store.maxTime) * 100;
+  const dur = end - start;
+  const lPct = (start / store.maxTime) * 100;
+  const wPct = (dur / store.maxTime) * 100;
 
   return (
     <div
       className="relative w-full h-[25px] my-2"
       onClick={() => store.setSelectedElement(element)}
     >
+      {/* start handle */}
       <DragableView
         className="z-10 cursor-ew-resize absolute h-full"
         value={start}
@@ -312,41 +235,28 @@ export const TimeFrameView = observer((props: TimeFrameViewProps) => {
         onChange={(v) =>
           store.updateEditorElementTimeFrame(element, { start: v })
         }
-        style={{ left: `${leftPct}%`, width: "10px" }}
-        bounds={{
-          min: 0,
-          max: end - 1
-        }}
+        style={{ left: `${lPct}%`, width: "10px" }}
       >
         <div className="bg-white border-2 border-blue-400 w-full h-full" />
       </DragableView>
 
+      {/* bar */}
       <DragableView
         className="absolute h-full cursor-col-resize"
         value={start}
         total={store.maxTime}
         onChange={(v) =>
-          store.updateEditorElementTimeFrame(element, {
-            start: v,
-            end: v + duration,
-          })
+          store.updateEditorElementTimeFrame(element, { start: v, end: v + dur })
         }
-        style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-        bounds={{
-          min: 0,
-          max: store.maxTime - duration
-        }}
+        style={{ left: `${lPct}%`, width: `${wPct}%` }}
       >
         <div
-          className={`relative h-full w-full text-white text-xs px-2 leading-[25px] ${
-            isSelected ? "bg-blue-600" : "bg-gray-600"
+          className={`h-full w-full text-white text-xs px-2 leading-[25px] ${
+            selElem ? "bg-blue-600" : "bg-gray-600"
           }`}
         >
           {element.name}
-          <span className="absolute right-1 top-1/2 transform -translate-y-1/2 text-[10px] text-white/80">
-            {start}–{end}
-          </span>
-          <div className="absolute right-6 top-1/2 transform -translate-y-1/2">
+          <div className="absolute right-1 top-1/2 transform -translate-y-1/2">
             <button
               className="text-white hover:text-gray-200"
               onClick={(e) => {
@@ -356,66 +266,61 @@ export const TimeFrameView = observer((props: TimeFrameViewProps) => {
             >
               <FaEllipsisV size={12} />
             </button>
+            {isShow && (
+              <div
+                ref={dropdownRef}
+                className="absolute right-0 mt-6 w-48 bg-white shadow-lg rounded-md z-50"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center"
+                  onClick={() => {
+                    store.cutElement();
+                    setIsShow(false);
+                  }}
+                >
+                  <FaCut className="text-blue-500 mr-2" /> Cut
+                </button>
+                <button
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center"
+                  onClick={() => {
+                    store.copyElement();
+                    setIsShow(false);
+                  }}
+                >
+                  <FaCopy className="text-blue-500 mr-2" /> Copy
+                </button>
+                <button
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center"
+                  onClick={() => {
+                    store.pasteElement();
+                    setIsShow(false);
+                  }}
+                >
+                  <FaPaste className="text-blue-500 mr-2" /> Paste
+                </button>
+                <button
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center"
+                  onClick={() => {
+                    store.deleteElement();
+                    setIsShow(false);
+                  }}
+                >
+                  <FaTrash className="text-red-500 mr-2" /> Delete
+                </button>
+              </div>
+            )}
           </div>
-          {isShow && (
-            <div
-              ref={dropdownRef}
-              className="absolute right-0 mt-6 w-48 bg-white shadow-lg rounded-md z-50"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <button
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center"
-                onClick={() => {
-                  store.cutElement();
-                  setIsShow(false);
-                }}
-              >
-                <FaCut className="text-blue-500 mr-2" /> Cut
-              </button>
-              <button
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center"
-                onClick={() => {
-                  store.copyElement();
-                  setIsShow(false);
-                }}
-              >
-                <FaCopy className="text-blue-500 mr-2" /> Copy
-              </button>
-              <button
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center"
-                onClick={() => {
-                  store.pasteElement();
-                  setIsShow(false);
-                }}
-              >
-                <FaPaste className="text-blue-500 mr-2" /> Paste
-              </button>
-              <button
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 flex items-center"
-                onClick={() => {
-                  store.deleteElement();
-                  setIsShow(false);
-                }}
-              >
-                <FaTrash className="text-red-500 mr-2" /> Delete
-              </button>
-            </div>
-          )}
         </div>
       </DragableView>
 
+      {/* end handle */}
       <DragableView
         className="z-10 cursor-ew-resize absolute h-full"
         value={end}
         total={store.maxTime}
-        onChange={(v) =>
-          store.updateEditorElementTimeFrame(element, { end: v })
-        }
+        onChange={(v) => store.updateEditorElementTimeFrame(element, { end: v })}
         style={{ left: `${(end / store.maxTime) * 100}%`, width: "10px" }}
-        bounds={{
-          min: start + 1,
-          max: store.maxTime
-        }}
       >
         <div className="bg-white border-2 border-blue-400 w-full h-full" />
       </DragableView>
