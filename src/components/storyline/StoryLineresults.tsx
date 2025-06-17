@@ -20,7 +20,7 @@ interface ScenePayload {
   svgs: SvgAsset[];
   backgrounds: BackgroundAsset[];
   animations: AnimationAsset[];
-  text:string[]
+  text: string[]
 }
 interface StoryLineResultsProps {
   showResultPopup: boolean;
@@ -61,7 +61,7 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
     }
   };
 
- 
+
 
 
   const handleAddToCanvas = () => {
@@ -71,7 +71,8 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
         gifs: scenePayload.svgs,
         animations: scenePayload.animations,
         elements: [],
-        text: scenePayload.text
+        text: scenePayload.text,
+       
       });
     });
     store.refreshElements();
@@ -117,15 +118,15 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
                           ))}
                         </div>
                       )}
-                       {payload.svgs.length > 0 && (
-                      <div className="char_type">
-                        {payload.svgs.map((svg, i) => (
-                          <div key={i} className="svg_type_img">
-                            <img src={svg.svg_url} alt={svg.tags.join(', ')} />
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                      {payload.svgs.length > 0 && (
+                        <div className="char_type">
+                          {payload.svgs.map((svg, i) => (
+                            <div key={i} className="svg_type_img">
+                              <img src={svg.svg_url} alt={svg.tags.join(', ')} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -136,7 +137,7 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
 
         <div className="st_line_buttons_outer">
           <div className="st_line_buttons_inner space-x-2">
-           
+
             <button
               className="buttons"
               onClick={() => download('/download-all-images', 'all_images.zip')}

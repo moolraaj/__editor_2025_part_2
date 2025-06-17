@@ -23,7 +23,7 @@ export const SeekPlayer = observer(({
   const store = useContext(StoreContext);
   const Icon = store.playing ? <img src={pause.src} width={40}/> : <img src={play.src} width={40}/>;
   
-  // Calculate time values based on view mode
+ 
   const currentTime = viewMode === "scene" 
     ? store.currentTimeInMs - (sceneIndex * perSceneLength)
     : store.currentTimeInMs;
@@ -35,7 +35,7 @@ export const SeekPlayer = observer(({
   const formattedTime = formatTimeToMinSecMili(currentTime);
   const formattedMaxTime = formatTimeToMinSecMili(maxTime);
 
-  // Handle seek based on view mode
+ 
   const handleSeek = (value: number) => {
     if (viewMode === "scene") {
       const sceneStartTime = sceneIndex * perSceneLength;

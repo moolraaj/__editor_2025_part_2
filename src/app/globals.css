@@ -126,12 +126,15 @@ body {
     margin-top: 20px;
 }
 
+.drag_view_line {
+    margin: 10px 0px 0px 0px!important;
+}
 
-
-
-
-
-
+.scene_main_img {
+    width: 100%;
+    margin-left: 0;
+    height: 28px;
+}
 
 .popup_overlay {
   position: fixed;

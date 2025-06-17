@@ -76,7 +76,7 @@ export const ScaleRangeInput: React.FC<ScaleRangeInputProps> = (props) => {
             height={props.height}
             ref={ref}></canvas>
         <div
-            className="w-[20px] absolute top-0 left-0 "
+            className="w-[20px] absolute top-0 left-0 cursor-pointer cursor-grabbing"
             id='ruler_scale_drag'
             style={{
                 transform: `translateX(${value / max * canvasSize.width}px) translateX(-2px)`

@@ -9,6 +9,7 @@ import { AiOutlineFileImage } from "react-icons/ai";
 export type ElementProps = {
   element: EditorElement;
 };
+
 export const Element = observer((props: ElementProps) => {
   const store = React.useContext(StoreContext);
   const { element } = props;
@@ -21,6 +22,7 @@ export const Element = observer((props: ElementProps) => {
       : MdOutlineTextFields;
 
   const isSelected = store.selectedElement?.id === element.id;
+
   const isActiveScene =
     element.type === "scene" &&
     (element as any).properties.sceneIndex === store.activeSceneIndex;
@@ -28,16 +30,20 @@ export const Element = observer((props: ElementProps) => {
   const bgColor = isSelected ? "rgba(0, 160, 245, 0.1)" : "";
   const borderStyle = isActiveScene ? "2px solid red" : "none";
 
-  // ← Only for scenes, get mainBackground instead of backgrounds[0]
   let bgImage: string | undefined = undefined;
-  if (element.type === "scene" && element.properties.mainBackground) {
-    bgImage = element.properties.mainBackground.background_url;
+  if (element.type === "scene" && element.properties.bgImage) {
+    bgImage = element.properties.bgImage;
   }
 
   const handleElementClick = () => {
     store.setSelectedElement(element);
+
     if (element.type === "scene") {
-      store.setActiveScene((element as any).properties.sceneIndex);
+      const sceneIndex = (element as any).properties.sceneIndex;
+      store.setActiveScene(sceneIndex);
+
+      const sceneStartTime = store.scenes[sceneIndex]?.timeFrame?.start || 0;
+      store.updateTimeTo(sceneStartTime); // ⏪ Move playhead and refresh
     }
   };
 
@@ -50,10 +56,7 @@ export const Element = observer((props: ElementProps) => {
         onClick={handleElementClick}
       >
         {bgImage && (
-          <img
-            src={bgImage}
-            alt="Scene background"
-          />
+          <img src={bgImage} alt="Scene background" />
         )}
         <div className="scene_wrapper">
           <div className="scene_name">
@@ -75,7 +78,6 @@ export const Element = observer((props: ElementProps) => {
     );
   }
 
-  // Non-scene elements remain unchanged
   return (
     <div
       style={{
@@ -114,7 +116,7 @@ export const Element = observer((props: ElementProps) => {
             height={20}
             width={20}
             id={element.properties.elementId}
-          ></img>
+          />
         ) : null}
 
         <button

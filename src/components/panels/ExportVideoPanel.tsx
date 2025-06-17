@@ -8,8 +8,8 @@ export const ExportVideoPanel = observer(() => {
   const store = React.useContext(StoreContext);
 
   let seconds = store.maxTime / 1000 === 1 ? 'sec' : 'secs'
-  let maxtime=store.maxTime / 1000
-   
+  let maxtime = store.maxTime / 1000
+
 
   return (
     <>
