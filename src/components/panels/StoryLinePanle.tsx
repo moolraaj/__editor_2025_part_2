@@ -1,53 +1,36 @@
- 
-'use client';
+"use client";
 
-import React, { useContext, useState } from 'react';
-import { observer } from 'mobx-react-lite';
-import { StoreContext } from '@/store';
-import { CreateStorylinePopup } from '../entity/StoryLineresource';
-import StoryLineResults from '../storyline/StoryLineresults';
-import { API_URL } from '@/utils/constants';
-import { PdfExporter } from '../storyline/PdfExporter';
+import React, { useContext, useState } from "react";
+import { observer } from "mobx-react-lite";
+import { StoreContext } from "@/store";
+import { CreateStorylinePopup } from "../entity/StoryLineresource";
+import StoryLineResults from "../storyline/StoryLineresults";
+import { API_URL } from "@/utils/constants";
+
 type SearchResponse = {
   results: any[];
   suggestions?: Record<number, { suggestion: string; assets: any }>;
-}
+};
+
 const StoryLinePanel: React.FC = observer(() => {
   const store = useContext(StoreContext);
+  const hasScenes = store.scenes.length > 0;
+
   const [showResultPopup, setShowResultPopup] = useState(false);
   const [payloads, setPayloads] = useState<any[]>([]);
   const [lastSentences, setLastSentences] = useState<string[]>([]);
-  const speakText = async (text: string) => {
-    try {
-      const res = await fetch(`${API_URL}/speak`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
-      });
-      if (!res.ok) {
-        console.error('TTS request failed:', res.statusText);
-        return;
-      }
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const audio = new Audio(url);
-      audio.onended = () => URL.revokeObjectURL(url);
-      audio.play();
-    } catch (err) {
-      console.error('Error playing TTS:', err);
-    }
-  };
+
   const handleSubmit = async (sentences: string[]) => {
     if (!sentences.length) return;
     setLastSentences(sentences);
-    // await speakText(sentences.join('. '));
+
     const res = await fetch(`${API_URL}/search`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ texts: sentences }),
     });
     if (!res.ok) {
-      console.error('Search request failed:', res.statusText);
+      console.error("Search request failed:", res.statusText);
       return;
     }
     const data: SearchResponse = await res.json();
@@ -58,7 +41,7 @@ const StoryLinePanel: React.FC = observer(() => {
       );
       alert(
         `Some inputs didn’t match any assets.\n\nPlease try again with better keywords:\n\n${lines.join(
-          '\n'
+          "\n"
         )}`
       );
       return;
@@ -67,14 +50,24 @@ const StoryLinePanel: React.FC = observer(() => {
     setShowResultPopup(true);
     store.setShowStorylinePopup(false);
   };
+
   return (
     <div>
-      <div className="text-sm px-4 text-white pt-4 pb-2 font-semibold">
+       
+      <div className={`text-sm px-4 text-white pt-4 pb-2 font-semibold ${hasScenes?'opacity-50':''} ` }>
         Storyline
       </div>
+
+      
       <button
         onClick={() => store.createStoryline()}
-        className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold mx-2 py-2 px-4 rounded"
+        disabled={hasScenes}
+        className={`
+          bg-gray-300 text-gray-800 font-bold mx-2 py-2 px-4 rounded
+          ${hasScenes
+            ? "opacity-50 cursor-not-allowed"
+            : ""}
+        `}
       >
         Create Storyline
       </button>
@@ -92,8 +85,6 @@ const StoryLinePanel: React.FC = observer(() => {
         sentences={lastSentences}
         setShowResultPopup={setShowResultPopup}
       />
-
-      <PdfExporter/>
     </div>
   );
 });

@@ -67,11 +67,18 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   const handleAddToCanvas = () => {
     payloads.forEach((scenePayload) => {
       store.addSceneResource({
+        //@ts-ignore
         backgrounds: scenePayload.backgrounds,
+        //@ts-ignore
         gifs: scenePayload.svgs,
+        //@ts-ignore
         animations: scenePayload.animations,
+        //@ts-ignore
         elements: [],
+        //@ts-ignore
         text: scenePayload.text,
+        //@ts-ignore
+        tts_audio_url: scenePayload.tts_audio_url 
        
       });
     });

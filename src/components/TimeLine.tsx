@@ -35,82 +35,96 @@ export const TimeLine: React.FC = observer(() => {
     store.setCurrentTimeInMs(sceneStartTime);
     store.setActiveScene(idx);
     setCurrentSceneIndex(idx);
-    const sceneData = store.scenes[idx];
-    const sceneElement = store.editorElements.find(
-      e => e.type === "scene" &&
-        (e as SceneEditorElement).properties.sceneIndex === idx
-    ) as SceneEditorElement | undefined;
-    const backgroundsArray = toJS(sceneData.backgrounds);
-    const bgImage = sceneElement?.properties.bgImage ?? null;
-    console.group(`Active Scene ${idx}`);
-    console.log("MAIN SCENE LAYER:", {
-      id: sceneElement?.id,
-      name: sceneElement?.name,
-      timeFrame: toJS(sceneElement?.timeFrame),
-      bgImage,
-    });
-    console.group("• backgrounds (nested)");
-    backgroundsArray.forEach(bg =>
-      console.log({
-        id: bg.id,
-        name: bg.name,
-        timeFrame: toJS(bg.timeFrame),
-        background_url: bg.background_url,
-      })
-    );
-    console.groupEnd();
-    console.group("• gifs");
-    toJS(sceneData.gifs).forEach(gf =>
-      console.log({
-        id: gf.id,
-        tags: toJS(gf.tags),
-        timeFrame: toJS(gf.timeFrame),
-        svg_url: gf.svg_url,
-        calculatedPosition: toJS(gf.calculatedPosition),
-      })
-    );
-    console.groupEnd();
+    // const sceneData = store.scenes[idx];
+    // const sceneElement = store.editorElements.find(
+    //   e => e.type === "scene" &&
+    //     (e as SceneEditorElement).properties.sceneIndex === idx
+    // ) as SceneEditorElement | undefined;
+    // const backgroundsArray = toJS(sceneData.backgrounds);
+    // //@ts-ignore
+    // const bgImage = sceneElement?.properties.bgImage ?? null;
+    // console.group(`Active Scene ${idx}`);
+    // console.log("MAIN SCENE LAYER:", {
+    //   id: sceneElement?.id,
+    //   name: sceneElement?.name,
+    //   timeFrame: toJS(sceneElement?.timeFrame),
+    //   bgImage,
+    // });
+    // console.group("• backgrounds (nested)");
+    // backgroundsArray.forEach(bg =>
+    //   console.log({
+    //     id: bg.id,
+    //     name: bg.name,
+    //     timeFrame: toJS(bg.timeFrame),
+    //     background_url: bg.background_url,
+    //   })
+    // );
+    // console.groupEnd();
+    // console.group("• gifs");
+    // toJS(sceneData.gifs).forEach(gf =>
+    //   console.log({
+    //     id: gf.id,
+    //     tags: toJS(gf.tags),
+    //     timeFrame: toJS(gf.timeFrame),
+    //     svg_url: gf.svg_url,
+    //     calculatedPosition: toJS(gf.calculatedPosition),
+    //   })
+    // );
+    // console.groupEnd();
 
-    console.group("• animations");
-    toJS(sceneData.animations).forEach(an =>
-      console.log({
-        id: an.id,
-        type: an.type,
-        timeFrame: toJS(an.timeFrame),
-      })
-    );
-    console.groupEnd();
+    // console.group("• animations");
+    // toJS(sceneData.animations).forEach(an =>
+    //   console.log({
+    //     id: an.id,
+    //     type: an.type,
+    //     timeFrame: toJS(an.timeFrame),
+    //   })
+    // );
+    // console.groupEnd();
 
-    console.group("• elements");
-    console.group("• elements");
-    toJS(sceneData.elements).forEach(el =>
-      console.log({
-        id: el.id,
-        type: el.type,
-        timeFrame: toJS(el.timeFrame),
-      })
-    );
-    console.groupEnd();
+    // console.group("• elements");
+    // console.group("• elements");
+    // toJS(sceneData.elements).forEach(el =>
+    //   console.log({
+    //     id: el.id,
+    //     type: el.type,
+    //     timeFrame: toJS(el.timeFrame),
+    //   })
+    // );
+    // console.groupEnd();
 
-    console.groupEnd();
+    // console.groupEnd();
 
-    console.group("• text");
-    toJS(sceneData.text || []).forEach(tx =>
-      console.log({
-        id: tx.id,
-        type: tx.type,
-        value: tx.value,
-        timeFrame: toJS(tx.timeFrame),
-        properties: toJS(tx.properties),
-        placement: toJS(tx.placement),
-      })
-    );
-    console.groupEnd();
-    console.groupEnd();
-    if (store.canvas) {
-      store.canvas.discardActiveObject();
-      store.canvas.requestRenderAll();
-    }
+    // console.group("• text");
+    // toJS(sceneData.text || []).forEach(tx =>
+    //   console.log({
+    //     id: tx.id,
+    //     type: tx.type,
+    //     value: tx.value,
+    //     timeFrame: toJS(tx.timeFrame),
+    //     properties: toJS(tx.properties),
+    //     placement: toJS(tx.placement),
+    //   })
+    // );
+    // console.groupEnd();
+    // console.groupEnd();
+
+    //  console.group("• tts");
+    // toJS(sceneData.tts || []).forEach(tx =>
+    //   console.log({
+    //     id: tx.id,
+    //     layerType: tx.layerType,
+    //     played: tx.played,
+    //     timeFrame: toJS(tx.timeFrame),
+    //     audioUrl: tx.audioUrl,
+    //   })
+    // );
+    // console.groupEnd();
+    // console.groupEnd();
+    // if (store.canvas) {
+    //   store.canvas.discardActiveObject();
+    //   store.canvas.requestRenderAll();
+    // }
   };
 
 

@@ -3,6 +3,7 @@ import React from "react";
 import { StoreContext } from "@/store";
 import { observer } from "mobx-react-lite";
 import { VIDEO_EXPORT_LENGTH } from "@/utils/constants";
+import { PdfExporter } from "../storyline/PdfExporter";
 
 export const ExportVideoPanel = observer(() => {
   const store = React.useContext(StoreContext);
@@ -16,6 +17,8 @@ export const ExportVideoPanel = observer(() => {
       <div className="text-sm px-[16px] pt-[16px] pb-[8px] font-semibold text-white">
         Export Activities
       </div>
+
+      
 
       <div className="px-[16px]">
         <div className="flex flex-row items-center my-2 text-white section_bottom_margin">
@@ -85,6 +88,7 @@ export const ExportVideoPanel = observer(() => {
       >
         Download {store.selectedVideoFormat === "mp4" ? (`mp4 (${maxtime})  ${seconds}`) : (`webm (${maxtime}) ${seconds}`)}
       </button>
+       <PdfExporter/>
     </>
   );
 });

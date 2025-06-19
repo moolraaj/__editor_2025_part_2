@@ -8,6 +8,7 @@ import { AiOutlineFileImage } from "react-icons/ai";
 
 export type ElementProps = {
   element: EditorElement;
+  
 };
 
 export const Element = observer((props: ElementProps) => {
@@ -31,7 +32,9 @@ export const Element = observer((props: ElementProps) => {
   const borderStyle = isActiveScene ? "2px solid red" : "none";
 
   let bgImage: string | undefined = undefined;
+  //@ts-ignore
   if (element.type === "scene" && element.properties.bgImage) {
+    //@ts-ignore
     bgImage = element.properties.bgImage;
   }
 

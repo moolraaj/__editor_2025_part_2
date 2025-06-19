@@ -12,6 +12,7 @@ export const PdfExporter: React.FC = observer(() => {
       return
     }
     const { width, height } = canvas
+    //@ts-ignore
     const orientation = width > height ? 'landscape' : 'portrait'
     const pdf = new jsPDF({
       orientation,
@@ -24,9 +25,11 @@ export const PdfExporter: React.FC = observer(() => {
       store.updateTimeTo(start)
       await wait(1000)
       canvas.renderAll()
+       //@ts-ignore
       const imgData = (canvas.lowerCanvasEl as HTMLCanvasElement)
         .toDataURL('image/png')
       if (i > 0) pdf.addPage()
+        //@ts-ignore
       pdf.addImage(imgData, 'PNG' as any, 0, 0, width, height)
     }
     pdf.save('scenes.pdf')
@@ -35,7 +38,7 @@ export const PdfExporter: React.FC = observer(() => {
   return (
     <button
       onClick={exportScenesAsPdf}
-      className="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold mx-2 py-2 px-4 rounded mt-6"
+      className="bg-gray-500 hover:bg-gray-700 text-white font-bold py-1 px-1 rounded-lg m-4 export_button"
     >
       GENERATE SCENES PDF
     </button>
