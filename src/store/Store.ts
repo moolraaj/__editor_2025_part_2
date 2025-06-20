@@ -296,11 +296,11 @@ export class Store {
   }
   cutElement() {
     if (!this.selectedElement) {
-      console.warn(' No layer selected to cut.')
+      console.warn('⚠️ No layer selected to cut.')
       return
     }
     if (this.copiedElement) {
-      console.warn(' Clipboard not empty—overwriting with new cut.')
+      console.warn('⚠️ Clipboard not empty—overwriting with new cut.')
     }
     this.copiedElement = this.selectedElement
     if (this.selectedElement.fabricObject) {
@@ -309,52 +309,61 @@ export class Store {
     }
     this.removeEditorElement(this.selectedElement.id)
     this.selectedElement = null
-    console.log(' CUT element with ID:', this.copiedElement.id)
+    console.log('✂️ CUT element with ID:', this.copiedElement.id)
   }
+
   copyElement() {
     if (!this.selectedElement) {
-      console.warn(' No layer selected for copying.')
+      console.warn('⚠️ No layer selected for copying.')
       return
     }
+
     if (this.copiedElement) {
-      console.warn(' Already copied a layer. Paste before copying again.')
+      console.warn('⚠️ Already copied a layer. Paste before copying again.')
       return
     }
+
     this.selectedElement.fabricObject?.clone((cloned: fabric.Object) => {
       if (!cloned) {
-        console.error('Failed to clone fabric object!')
+        console.error('🚨 Failed to clone fabric object!')
         return
       }
+
       cloned.set({
         left: this.selectedElement?.placement.x,
         top: this.selectedElement?.placement.y,
         selectable: true,
         evented: true,
       })
+
       this.copiedElement = {
         ...this.selectedElement,
         id: getUid(),
-        //@ts-ignore
-        name: Layer(`${this.selectedElement?.id}`),
+        name: `Layer (${this.selectedElement?.id})`,
         fabricObject: cloned,
       } as EditorElement
-      console.log('Copied Layer:', this.copiedElement.name)
+
+      console.log('✅ Copied Layer:', this.copiedElement.name)
     })
   }
+
   pasteElement() {
     if (!this.copiedElement) {
-      console.warn(' No copied layer! Copy one first.');
+      console.warn('⚠️ No copied layer! Copy one first.');
       return;
     }
+
     const elementToPaste = { ...this.copiedElement };
     this.copiedElement = null;
+
     if (elementToPaste) {
       elementToPaste.fabricObject?.clone((cloned: fabric.Object) => {
         if (!cloned) {
-          console.error('Failed to clone Fabric.js object.');
+          console.error('❌ Failed to clone Fabric.js object.');
           return;
         }
         let newProperties = { ...elementToPaste.properties };
+
         if (elementToPaste.type === 'audio') {
           const newAudioId = getUid();
           const newAudioElement = document.createElement('audio');
@@ -366,6 +375,7 @@ export class Store {
             elementId: newAudioElement.id,
           };
         }
+
         if (elementToPaste.type === 'video') {
           const newVideoId = getUid();
           const newVideoElement = document.createElement('video');
@@ -378,6 +388,7 @@ export class Store {
             elementId: newVideoElement.id,
           };
         }
+
         const newElement = {
           ...elementToPaste,
           id: getUid(),
@@ -394,18 +405,23 @@ export class Store {
           properties: newProperties,
           fabricObject: cloned,
         } as EditorElement;
+
         this.addEditorElement(newElement);
         this.canvas?.add(cloned);
         this.canvas?.renderAll();
-        console.log('Pasted Full Layer', newElement.name);
+
+        console.log('✅ Pasted Full Layer:', newElement.name);
       });
     } else {
-      console.warn('Frame too small to paste!');
+      console.warn('⚠️ Frame too small to paste!');
     }
   }
+
+
+
   deleteElement() {
     if (!this.selectedElement) {
-      console.warn('No layer selected to delete.')
+      console.warn('⚠️ No layer selected to delete.')
       return
     }
     const elementToDelete = this.selectedElement
@@ -418,9 +434,10 @@ export class Store {
     this.canvas?.renderAll()
     this.refreshElements()
   }
+
   splitElement() {
     if (!this.selectedElement) {
-      console.warn('Cannot split audio layers.')
+      console.warn('⚠️ Cannot split audio layers.')
       return
     }
     const selectedElement = this.selectedElement
@@ -428,17 +445,18 @@ export class Store {
     const totalDuration = end - start
 
     if (totalDuration < 2000) {
-      console.warn('Frame too small to split!')
+      console.warn('⚠️ Frame too small to split!')
       return
     }
     const midTime = Math.floor((start + end) / 2)
     this.updateEditorElementTimeFrame(selectedElement, { end: midTime })
     selectedElement.fabricObject?.clone((cloned: fabric.Object) => {
       if (!cloned) {
-        console.error('Failed to clone Fabric.js object.')
+        console.error('❌ Failed to clone Fabric.js object.')
         return
       }
       let newProperties = { ...selectedElement.properties }
+
       if (selectedElement.type === 'audio') {
         const newAudioId = getUid()
         const newAudioElement = document.createElement('audio')
@@ -450,6 +468,7 @@ export class Store {
           elementId: newAudioElement.id,
         }
       }
+
       if (selectedElement.type === 'video') {
         const newVideoId = getUid()
         const newVideoElement = document.createElement('video')
@@ -462,6 +481,7 @@ export class Store {
           elementId: newVideoElement.id,
         }
       }
+
       const newElement = {
         ...selectedElement,
         id: getUid(),
@@ -482,6 +502,41 @@ export class Store {
       this.refreshElements()
     })
   }
+
+ 
+deleteSceneLayer(sceneIndex: number, layerId: string) {
+  const scene = this.scenes[sceneIndex];
+  if (!scene) return;
+
+  // 1) Remove from your scene data arrays
+  const removeById = <T extends { id: string }>(arr?: T[]) =>
+    arr?.filter(item => item.id !== layerId);
+  scene.backgrounds  = removeById(scene.backgrounds);
+  scene.gifs         = removeById(scene.gifs);
+  scene.animations   = removeById(scene.animations);
+  scene.elements     = removeById(scene.elements);
+  scene.text         = removeById(scene.text);
+  scene.tts          = removeById(scene.tts);
+
+  // 2) Remove any Fabric object whose data.elementId matches
+  if (this.canvas) {
+    // a) easy way: scan all objects on canvas
+    const toRemove = this.canvas
+      .getObjects()
+      .filter(obj => obj.data?.elementId === layerId);
+
+    toRemove.forEach(obj => this.canvas!.remove(obj));
+  }
+
+  // 3) Finally re-draw
+  this.canvas?.renderAll();
+}
+
+
+
+
+
+
   setFontSize(size: number) {
     if (!this.selectedElement || this.selectedElement.type !== 'text') return
     this.selectedElement.properties.fontSize = size

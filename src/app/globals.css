@@ -17,7 +17,10 @@ body {
   --background-end-rgb: 255, 255, 255;
 }
 
-
+.nested_layer_flex {
+    display: flex;
+    justify-content: space-between;
+}
 
 
 /*storyline css*/

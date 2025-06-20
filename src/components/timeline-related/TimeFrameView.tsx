@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useRef, useState, useContext } from "react";
@@ -6,7 +7,6 @@ import { StoreContext } from "@/store";
 import DragableView from "./DragableView";
 import { FaCopy, FaPaste, FaTrash, FaEllipsisV, FaCut } from "react-icons/fa";
 import type { EditorElement, SceneEditorElement, SceneLayer } from "@/types";
-import { colorMap } from "@/utils/animations";
 
 interface TimeFrameViewProps {
   element: EditorElement;
@@ -29,68 +29,14 @@ const calculateClickedTime = (
 export const TimeFrameView: React.FC<TimeFrameViewProps> = observer(
   ({ element, setCurrentSceneIndex, handleSceneClick }) => {
     const store = useContext(StoreContext);
-    const [isShow, setIsShow] = useState(false);
-    const dropdownRef = useRef<HTMLDivElement>(null);
+
 
     const formatTime = (ms: number) => {
       const seconds = ms / 1000;
       return seconds % 1 === 0 ? seconds.toString() : seconds.toFixed(1);
     };
 
-    useEffect(() => {
-      function handleKeyDown(event: KeyboardEvent) {
-        const isCtrlOrCmd = event.ctrlKey || event.metaKey;
-        const key = event.key.toLowerCase();
 
-        if (isCtrlOrCmd) {
-          switch (key) {
-            case "x":
-              event.preventDefault();
-              if (store.selectedElement) {
-                store.cutElement();
-              } else {
-                console.warn("⚠️ No layer selected to cut.");
-              }
-              return;
-            case "c":
-              event.preventDefault();
-              if (store.selectedElement) {
-                store.copyElement();
-              } else {
-                console.warn("⚠️ No layer selected to copy.");
-              }
-              return;
-            case "v":
-              event.preventDefault();
-              store.pasteElement();
-              return;
-            case "/":
-              event.preventDefault();
-              if (store.selectedElement) {
-                store.splitElement();
-              } else {
-                console.warn("⚠️ No layer selected to split.");
-              }
-              return;
-            default:
-              break;
-          }
-        } else {
-          if (event.key === "Delete") {
-            event.preventDefault();
-            if (store.selectedElement) {
-              store.deleteElement();
-            } else {
-              console.warn("⚠️ No layer selected to delete.");
-            }
-          }
-        }
-      }
-      window.addEventListener("keydown", handleKeyDown);
-      return () => {
-        window.removeEventListener("keydown", handleKeyDown);
-      };
-    }, [store]);
 
     if (element.type === "scene") {
       const se = element as SceneEditorElement;
@@ -155,7 +101,7 @@ export const TimeFrameView: React.FC<TimeFrameViewProps> = observer(
           </DragableView>
         </div>
       );
-      //@ts-ignore
+
       const layers: SceneLayer[] = [
         ...(scene.backgrounds || []).map((l) => ({
           ...l,
@@ -170,13 +116,14 @@ export const TimeFrameView: React.FC<TimeFrameViewProps> = observer(
           ...l,
           layerType: "element",
         })),
-        //@ts-ignore
         ...(scene.text || []).map((l) => ({ ...l, layerType: "text" })),
         ...(scene.tts || []).map((l) => ({ ...l, layerType: "tts" })),
       ];
 
       return (
         <div className="space-y-2">
+
+
           {layers.map((layer) => {
             const ls = layer.timeFrame.start - sceneStart;
             const le = layer.timeFrame.end - sceneStart;
@@ -194,6 +141,8 @@ export const TimeFrameView: React.FC<TimeFrameViewProps> = observer(
                   e.stopPropagation();
                   store.setActiveScene(idx);
                   setCurrentSceneIndex?.(idx);
+                  // const clickedTime = calculateClickedTime(e, sceneDur, sceneStart);
+                  // store.setCurrentTimeInMs(clickedTime);
                   const elementForSelection = {
                     id: layer.id,
                     name: `${layer.layerType}-${layer.id}`,
@@ -208,7 +157,7 @@ export const TimeFrameView: React.FC<TimeFrameViewProps> = observer(
                       rotation: 0,
                     },
                   };
-                  //@ts-ignore
+
                   store.setSelectedElement(elementForSelection);
                   if (store.selectLayerObject) {
                     store.selectLayerObject(layer.id);
@@ -248,6 +197,16 @@ export const TimeFrameView: React.FC<TimeFrameViewProps> = observer(
                   >
                     <strong>{layer.layerType.toUpperCase()}</strong>{" "}
                     {formatTime(ed - st)}s
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        store.deleteSceneLayer(idx, layer.id);
+                      }}
+                      className="ml-2 p-1"
+                     
+                    >
+                      <FaTrash className="text-sm" />
+                    </button>
                   </div>
                 </div>
 
@@ -256,6 +215,8 @@ export const TimeFrameView: React.FC<TimeFrameViewProps> = observer(
                   value={le}
                   total={sceneDur}
                   onChange={(v) => {
+
+
                     store.updateSceneLayerTimeFrame(idx, layer.id, {
                       end: sceneStart + v,
                     });
@@ -275,9 +236,8 @@ export const TimeFrameView: React.FC<TimeFrameViewProps> = observer(
       );
     }
 
-
+    // Non-scene element rendering (fallback)
     const isSelected = store.selectedElement?.id === element.id;
-    const layerColor = colorMap[element.type] || "gray";
     const { start, end } = element.timeFrame;
     const duration = end - start;
     const leftPct = (start / store.maxTime) * 100;
@@ -285,132 +245,71 @@ export const TimeFrameView: React.FC<TimeFrameViewProps> = observer(
 
     return (
       <div
-        onClick={() => {
-          store.setSelectedElement(element);
-        }}
-        key={element.id}
-        className={`relative width-full h-[25px] my-2`}
+        className="relative w-full h-[25px] my-2 flex items-center"
+        onClick={() => store.setSelectedElement(element)}
       >
         <DragableView
-          className="z-10"
-          value={element.timeFrame.start}
+          className="absolute z-10 cursor-ew-resize h-full"
+          value={start}
           total={store.maxTime}
-          onChange={(value) => {
-            store.updateEditorElementTimeFrame(element, {
-              start: value,
-            });
-          }}
+          onChange={(v) =>
+            store.updateEditorElementTimeFrame(element, { start: v })
+          }
+          style={{ left: `${leftPct}%`, width: "10px" }}
         >
-          <div
-            className={`bg-white border-2 border-blue-400 w-[10px] h-[28px] mt-[calc(25px/2)] translate-y-[-50%] transform translate-x-[-50%] cursor-ew-resize`}
-          ></div>
+          <div className="bg-white border-2 border-blue-400 w-full h-full" />
         </DragableView>
 
-        <DragableView
-          className="cursor-col-resize"
-          value={element.timeFrame.start}
-          style={{
-            width: `${widthPct}%`,
-            backgroundColor: layerColor,
-          }}
-          total={store.maxTime}
-          onChange={(value) => {
-            const { start, end } = element.timeFrame;
-            store.updateEditorElementTimeFrame(element, {
-              start: value,
-              end: value + (end - start),
-            });
-          }}
+        <div
+          className="absolute h-full flex items-center"
+          style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
         >
           <div
-            className={`h-full w-full text-white text-xs min-w-[0px] px-2 leading-[25px] ${isSelected ? "layer_active" : ""
-              }`}
+            className={`flex-1 h-full text-white text-xs px-2 leading-[25px] ${isSelected ? "bg-blue-600" : "bg-gray-600"
+              } flex items-center justify-between`}
           >
-            {element.name}
-
-            {isShow && (
-              <div
-                ref={dropdownRef}
-                className="absolute z-50 right-0 mt-6 bg-white shadow-lg rounded-md p-2 text-black"
-                onClick={(e) => e.stopPropagation()}
+            <span>
+              {element.name} ({formatTime(start)}–{formatTime(end)})
+            </span>
+            <span className="flex space-x-2 pr-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  store.cutElement();
+                }}
               >
-                <button
-                  className="flex items-center w-full px-2 py-1 hover:bg-gray-100"
-                  onClick={() => {
-                    store.cutElement();
-                    setIsShow(false);
-                  }}
-                >
-                  <FaCut className="text-blue-500 mr-2" />
-                  Cut [Ctrl + x]
-                </button>
-                <button
-                  className="flex items-center w-full px-2 py-1 hover:bg-gray-100"
-                  onClick={() => {
-                    store.copyElement();
-                    setIsShow(false);
-                  }}
-                >
-                  <FaCopy className="text-blue-500 mr-2" />
-                  Copy [Ctrl + c]
-                </button>
-                <button
-                  className="flex items-center w-full px-2 py-1 hover:bg-gray-100"
-                  onClick={() => {
-                    store.pasteElement();
-                    setIsShow(false);
-                  }}
-                >
-                  <FaPaste className="text-blue-500 mr-2" />
-                  Paste [Ctrl + v]
-                </button>
-                <button
-                  className="flex items-center w-full px-2 py-1 hover:bg-gray-100"
-                  onClick={() => {
-                    store.deleteElement();
-                    setIsShow(false);
-                  }}
-                >
-                  <FaTrash className="text-red-500 mr-2" />
-                  Del [Delete]
-                </button>
-                <button
-                  className="flex items-center w-full px-2 py-1 hover:bg-gray-100"
-                  onClick={() => {
-                    store.splitElement();
-                    setIsShow(false);
-                  }}
-                >
-                  <FaCut className="text-blue-500 mr-2" />
-                  Split [Ctrl + /]
-                </button>
-              </div>
-            )}
-
-            <div className="absolute right-2 top-0 h-full flex items-center">
-              <button onClick={(e) => {
-                e.stopPropagation();
-                setIsShow(!isShow);
-              }}>
-                <FaEllipsisV />
+                <FaCut className="cursor-pointer" />
               </button>
-            </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  store.copyElement();
+                }}
+              >
+                <FaCopy className="cursor-pointer" />
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  store.pasteElement();
+                }}
+              >
+                <FaPaste className="cursor-pointer" />
+              </button>
+            </span>
           </div>
-        </DragableView>
+        </div>
 
         <DragableView
-          className="z-10"
-          value={element.timeFrame.end}
+          className="absolute z-10 cursor-ew-resize h-full"
+          value={end}
           total={store.maxTime}
-          onChange={(value) => {
-            store.updateEditorElementTimeFrame(element, {
-              end: value,
-            });
-          }}
+          onChange={(v) =>
+            store.updateEditorElementTimeFrame(element, { end: v })
+          }
+          style={{ left: `${(end / store.maxTime) * 100}%`, width: "10px" }}
         >
-          <div
-            className={`bg-white border-2 border-blue-400 w-[10px] h-[28px] mt-[calc(25px/2)] translate-y-[-50%] transform translate-x-[-50%] cursor-ew-resize`}
-          ></div>
+          <div className="bg-white border-2 border-blue-400 w-full h-full" />
         </DragableView>
       </div>
     );

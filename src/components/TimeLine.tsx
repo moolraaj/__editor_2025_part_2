@@ -35,6 +35,7 @@ export const TimeLine: React.FC = observer(() => {
     store.setCurrentTimeInMs(sceneStartTime);
     store.setActiveScene(idx);
     setCurrentSceneIndex(idx);
+    setViewingScene(idx)
     // const sceneData = store.scenes[idx];
     // const sceneElement = store.editorElements.find(
     //   e => e.type === "scene" &&
@@ -137,21 +138,17 @@ export const TimeLine: React.FC = observer(() => {
       ({ start, end }) => ct >= start && ct < end
     );
     const newIdx = foundIdx === -1 ? sceneTimings.length - 1 : foundIdx;
-    if (viewMode === "master") {
-      if (newIdx !== store.activeSceneIndex) {
-        store.setActiveScene(newIdx);
-      }
-      if (newIdx !== currentSceneIndex) {
-        setCurrentSceneIndex(newIdx);
+
+    if (newIdx !== store.activeSceneIndex) {
+      store.setActiveScene(newIdx);
+    }
+    if (newIdx !== currentSceneIndex) {
+      setCurrentSceneIndex(newIdx);
+      if (viewMode === "scene") {
+        setViewingScene(newIdx);
       }
     }
-  }, [
-    store.currentTimeInMs,
-    sceneTimings,
-    store,
-    currentSceneIndex,
-    viewMode,
-  ]);
+  }, [store.currentTimeInMs, sceneTimings, store, currentSceneIndex, viewMode]);
 
 
   useEffect(() => {
