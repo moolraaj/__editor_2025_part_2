@@ -503,34 +503,34 @@ export class Store {
     })
   }
 
- 
-deleteSceneLayer(sceneIndex: number, layerId: string) {
-  const scene = this.scenes[sceneIndex];
-  if (!scene) return;
 
-  // 1) Remove from your scene data arrays
-  const removeById = <T extends { id: string }>(arr?: T[]) =>
-    arr?.filter(item => item.id !== layerId);
-  scene.backgrounds  = removeById(scene.backgrounds);
-  scene.gifs         = removeById(scene.gifs);
-  scene.animations   = removeById(scene.animations);
-  scene.elements     = removeById(scene.elements);
-  scene.text         = removeById(scene.text);
-  scene.tts          = removeById(scene.tts);
+  deleteSceneLayer(sceneIndex: number, layerId: string) {
+    const scene = this.scenes[sceneIndex];
+    if (!scene) return;
 
-  // 2) Remove any Fabric object whose data.elementId matches
-  if (this.canvas) {
-    // a) easy way: scan all objects on canvas
-    const toRemove = this.canvas
-      .getObjects()
-      .filter(obj => obj.data?.elementId === layerId);
+    // 1) Remove from your scene data arrays
+    const removeById = <T extends { id: string }>(arr?: T[]) =>
+      arr?.filter(item => item.id !== layerId);
+    scene.backgrounds = removeById(scene.backgrounds);
+    scene.gifs = removeById(scene.gifs);
+    scene.animations = removeById(scene.animations);
+    scene.elements = removeById(scene.elements);
+    scene.text = removeById(scene.text);
+    scene.tts = removeById(scene.tts);
 
-    toRemove.forEach(obj => this.canvas!.remove(obj));
+    // 2) Remove any Fabric object whose data.elementId matches
+    if (this.canvas) {
+      // a) easy way: scan all objects on canvas
+      const toRemove = this.canvas
+        .getObjects()
+        .filter(obj => obj.data?.elementId === layerId);
+
+      toRemove.forEach(obj => this.canvas!.remove(obj));
+    }
+
+    // 3) Finally re-draw
+    this.canvas?.renderAll();
   }
-
-  // 3) Finally re-draw
-  this.canvas?.renderAll();
-}
 
 
 
@@ -1181,6 +1181,7 @@ deleteSceneLayer(sceneIndex: number, layerId: string) {
     this.maxTime = this.getMaxTime();
     this.scenesTotalTime = this.getScenesTotalTime();
     this.refreshAnimations();
+    this.setActiveScene(sceneIndex)
   }
 
   addEditorElement(editorElement: EditorElement) {
