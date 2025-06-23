@@ -417,8 +417,6 @@ export class Store {
     }
   }
 
-
-
   deleteElement() {
     if (!this.selectedElement) {
       console.warn('⚠️ No layer selected to delete.')
@@ -443,7 +441,6 @@ export class Store {
     const selectedElement = this.selectedElement
     const { start, end } = selectedElement.timeFrame
     const totalDuration = end - start
-
     if (totalDuration < 2000) {
       console.warn('⚠️ Frame too small to split!')
       return
@@ -456,7 +453,6 @@ export class Store {
         return
       }
       let newProperties = { ...selectedElement.properties }
-
       if (selectedElement.type === 'audio') {
         const newAudioId = getUid()
         const newAudioElement = document.createElement('audio')
@@ -468,7 +464,6 @@ export class Store {
           elementId: newAudioElement.id,
         }
       }
-
       if (selectedElement.type === 'video') {
         const newVideoId = getUid()
         const newVideoElement = document.createElement('video')
@@ -481,7 +476,6 @@ export class Store {
           elementId: newVideoElement.id,
         }
       }
-
       const newElement = {
         ...selectedElement,
         id: getUid(),
@@ -502,13 +496,9 @@ export class Store {
       this.refreshElements()
     })
   }
-
-
   deleteSceneLayer(sceneIndex: number, layerId: string) {
     const scene = this.scenes[sceneIndex];
     if (!scene) return;
-
-    // 1) Remove from your scene data arrays
     const removeById = <T extends { id: string }>(arr?: T[]) =>
       arr?.filter(item => item.id !== layerId);
     scene.backgrounds = removeById(scene.backgrounds);
@@ -517,25 +507,14 @@ export class Store {
     scene.elements = removeById(scene.elements);
     scene.text = removeById(scene.text);
     scene.tts = removeById(scene.tts);
-
-    // 2) Remove any Fabric object whose data.elementId matches
     if (this.canvas) {
-      // a) easy way: scan all objects on canvas
       const toRemove = this.canvas
         .getObjects()
         .filter(obj => obj.data?.elementId === layerId);
-
       toRemove.forEach(obj => this.canvas!.remove(obj));
     }
-
-    // 3) Finally re-draw
     this.canvas?.renderAll();
   }
-
-
-
-
-
 
   setFontSize(size: number) {
     if (!this.selectedElement || this.selectedElement.type !== 'text') return
@@ -1182,35 +1161,28 @@ export class Store {
     this.scenesTotalTime = this.getScenesTotalTime();
     this.refreshAnimations();
     this.setActiveScene(sceneIndex)
+
   }
 
   addEditorElement(editorElement: EditorElement) {
-    console.group('🟢 addEditorElement');
-
     const activeScene = this.editorElements.find(
       el => el.type === 'scene' &&
         (el as SceneEditorElement).properties.sceneIndex === this.activeSceneIndex
     ) as SceneEditorElement | undefined;
-
     if (activeScene) {
       if (!activeScene.properties.elements) {
         activeScene.properties.elements = [];
       }
-
       activeScene.properties.elements.push(editorElement);
-
-      // ✅ Find actual scene object in this.scenes and sync
       const sceneObj = this.scenes[this.activeSceneIndex];
       if (!sceneObj.elements) {
         sceneObj.elements = [];
       }
-      sceneObj.elements.push(editorElement); // <== THIS IS THE MISSING PART
-
+      sceneObj.elements.push(editorElement);
       this.updateEditorElement(activeScene);
     } else {
       this.setEditorElements([...this.editorElements, editorElement]);
     }
-
     console.groupEnd();
   }
 
