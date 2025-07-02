@@ -555,3 +555,243 @@
 //     this.updateAudioElements();
 //     this.canvas?.requestRenderAll();
 //   }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// "use client";
+
+// import React, { useContext, useState, useRef, useEffect } from "react";
+// import { observer } from "mobx-react-lite";
+// import { StoreContext } from "@/store";
+// import { SeekPlayer } from "./timeline-related/SeekPlayer";
+// import { TimeFrameView } from "./timeline-related/TimeFrameView";
+// import type { SceneEditorElement } from "@/types";
+
+// export const TimeLine: React.FC = observer(() => {
+//   const store = useContext(StoreContext);
+
+//   const [viewMode, setViewMode] = useState<"master" | "scene">("master");
+//   const [viewingScene, setViewingScene] = useState(0);
+//   const [currentSceneIndex, setCurrentSceneIndex] = useState(0);
+
+//   // --- guard so our auto-sync effect won't override a manual click
+//   const skipSyncRef = useRef(false);
+
+//   const sceneTimings = store.scenes.map((scene) => ({
+//     start: scene.timeFrame.start,
+//     end: scene.timeFrame.end,
+//     duration: scene.timeFrame.end - scene.timeFrame.start,
+//   }));
+
+//   const sceneElements = store.scenes.map((_, idx) =>
+//     store.editorElements.find(
+//       (e) =>
+//         e.type === "scene" &&
+//         (e as SceneEditorElement).properties.sceneIndex === idx
+//     ) as SceneEditorElement
+//   );
+
+//   // AUTO-SYNC: highlight the scene containing currentTimeInMs
+//   useEffect(() => {
+//     if (skipSyncRef.current) return;
+//     if (sceneTimings.length === 0) return;
+
+//     const ct = store.currentTimeInMs;
+//     const found = sceneTimings.findIndex(
+//       ({ start, end }) => ct >= start && ct < end
+//     );
+//     const newIdx = found === -1 ? sceneTimings.length - 1 : found;
+
+//     if (viewMode === "master") {
+//       if (newIdx !== store.activeSceneIndex) {
+//         store.setActiveScene(newIdx);
+//       }
+//       if (newIdx !== currentSceneIndex) {
+//         setCurrentSceneIndex(newIdx);
+//       }
+//     }
+//   }, [
+//     store.currentTimeInMs,
+//     sceneTimings,
+//     viewMode,
+//     currentSceneIndex,
+//     store,
+//   ]);
+
+//   // When we hit the end...
+//   useEffect(() => {
+//     if (viewMode === "master") {
+//       if (
+//         store.scenesTotalTime > 0 &&
+//         store.currentTimeInMs >= store.scenesTotalTime
+//       ) {
+//         store.setCurrentTimeInMs(0);
+//         store.setPlaying(false);
+//       }
+//     } else {
+//       const { start, end } = sceneTimings[viewingScene] || {};
+//       if (store.currentTimeInMs >= end) {
+//         store.handleSeek(start);
+//         store.setPlaying(false);
+//       }
+//     }
+//   }, [store.currentTimeInMs, viewingScene, viewMode, sceneTimings, store]);
+
+//   const totalTime = store.maxTime;
+//   const nowPct =
+//     totalTime > 0
+//       ? viewMode === "master"
+//         ? (store.currentTimeInMs / totalTime) * 100
+//         : ((store.currentTimeInMs - sceneTimings[viewingScene].start) /
+//             sceneTimings[viewingScene].duration) *
+//           100
+//       : 0;
+
+//   const handleSceneClick = (idx: number) => {
+//     const start = sceneTimings[idx].start;
+
+//     // 1) stop playback
+//     if (store.playing) store.setPlaying(false);
+
+//     // 2) load scene idx into the canvas
+//     store.setActiveScene(idx);
+
+//     // 3) guard against auto-sync
+//     skipSyncRef.current = true;
+
+//     // 4) seek + redraw everything at `start`
+//     store.handleSeek(start);
+
+//     // 5) update local state
+//     setCurrentSceneIndex(idx);
+//     setViewingScene(idx);
+
+//     // 6) clear guard on next tick
+//     setTimeout(() => {
+//       skipSyncRef.current = false;
+//     }, 0);
+//   };
+
+//   const renderMasterView = () => (
+//     <div
+//       className="relative h-48 drag_view_line"
+//       onDragOver={(e) => e.preventDefault()}
+//     >
+//       {sceneElements.map((sceneElem, idx) => {
+//         if (!sceneElem) return null;
+//         const { start, duration } = sceneTimings[idx];
+//         const leftPct = (start / totalTime) * 100;
+//         const widthPct = (duration / totalTime) * 100;
+
+//         return (
+//           <div
+//             key={idx}
+//             className="absolute top-0"
+//             style={{
+//               left: `${leftPct}%`,
+//               width: `${widthPct}%`,
+//               borderRight: "1px solid rgb(75 85 99)",
+//             }}
+//           >
+//             <TimeFrameView
+//               element={sceneElem}
+//               handleSceneClick={() => handleSceneClick(idx)}
+//             />
+//           </div>
+//         );
+//       })}
+//       <div
+//         className="w-[2px] bg-[#f87171] absolute top-0 bottom-0 z-20"
+//         style={{ left: `${nowPct}%` }}
+//       />
+//     </div>
+//   );
+
+//   const renderSceneView = () => {
+//     const sceneElem = sceneElements[viewingScene];
+//     if (!sceneElem) return null;
+
+//     // grab nested layers
+//     const nested = store.editorElements.filter(
+//       (el) =>
+//         el.type !== "scene" &&
+//         (el as SceneEditorElement).properties.sceneIndex === viewingScene
+//     );
+
+//     return (
+//       <div className="relative h-48 drag_view_line">
+//         {/* Main scene bar */}
+//         <TimeFrameView
+//           element={sceneElem}
+//           handleSceneClick={() => handleSceneClick(viewingScene)}
+//         />
+
+//         {/* Nested layer bars */}
+//         <div className="mt-2 space-y-1">
+//           {nested.map((el) => (
+//             <TimeFrameView key={el.id} element={el} />
+//           ))}
+//         </div>
+
+//         <div
+//           className="w-[2px] bg-[#f87171] absolute top-0 bottom-0 z-20"
+//           style={{ left: `${nowPct}%` }}
+//         />
+//       </div>
+//     );
+//   };
+
+//   return (
+//     <div className="flex flex-col space-y-6">
+//       <SeekPlayer
+//         viewMode={viewMode}
+//         sceneIndex={viewingScene}
+//         perSceneLength={
+//           viewMode === "scene"
+//             ? sceneTimings[viewingScene].duration
+//             : totalTime
+//         }
+//       />
+
+//       <div className="flex border-b border-gray-600">
+//         <button
+//           className={`text-white px-4 py-2 ${
+//             viewMode === "master" ? "bg-gray-700" : "hover:bg-gray-800"
+//           }`}
+//           onClick={() => setViewMode("master")}
+//         >
+//           All Scenes
+//         </button>
+//         <button
+//           className={`text-white px-4 py-2 ${
+//             viewMode === "scene" ? "bg-gray-700" : "hover:bg-gray-800"
+//           }`}
+//           onClick={() => {
+//             setViewMode("scene");
+//             handleSceneClick(currentSceneIndex);
+//           }}
+//         >
+//           Scene {currentSceneIndex + 1}
+//         </button>
+//       </div>
+
+//       {viewMode === "master" ? renderMasterView() : renderSceneView()}
+//     </div>
+//   );
+// });

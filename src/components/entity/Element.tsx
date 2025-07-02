@@ -43,10 +43,10 @@ export const Element = observer((props: ElementProps) => {
 
     if (element.type === "scene") {
       const sceneIndex = (element as any).properties.sceneIndex;
-      store.setActiveScene(sceneIndex);
-
+      
       const sceneStartTime = store.scenes[sceneIndex]?.timeFrame?.start || 0;
-      store.updateTimeTo(sceneStartTime); // ⏪ Move playhead and refresh
+      store.updateTimeTo(sceneStartTime); 
+      store.setActiveScene(sceneIndex);
     }
   };
 

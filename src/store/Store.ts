@@ -501,10 +501,15 @@ export class Store {
     if (!scene) return;
     const removeById = <T extends { id: string }>(arr?: T[]) =>
       arr?.filter(item => item.id !== layerId);
+     //@ts-ignore
     scene.backgrounds = removeById(scene.backgrounds);
+     //@ts-ignore
     scene.gifs = removeById(scene.gifs);
+     //@ts-ignore
     scene.animations = removeById(scene.animations);
+     //@ts-ignore
     scene.elements = removeById(scene.elements);
+     //@ts-ignore
     scene.text = removeById(scene.text);
     scene.tts = removeById(scene.tts);
     if (this.canvas) {
