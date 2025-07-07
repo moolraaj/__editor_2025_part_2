@@ -1,21 +1,31 @@
+
+
+
+
 'use client';
 
-import React, { useContext, useEffect, useState } from 'react';
+import React, { useContext } from 'react';
 import { FaTimes } from 'react-icons/fa';
 import { API_URL } from '@/utils/constants';
 import { StoreContext } from '@/store';
-import { PreviewCanvas } from './TempCanvas';
- 
+import  {SceneEditor}  from './TempCanvas';
 
-interface SvgAsset { tags: string[]; svg_url: string; }
-interface BackgroundAsset { name: string; background_url: string; }
-interface AnimationAsset { name: string; }
+interface SvgAsset {
+  tags: string[];
+  svg_url: string;
+}
+interface BackgroundAsset {
+  name: string;
+  background_url: string;
+}
+interface AnimationAsset {
+  name: string;
+}
 interface ScenePayload {
   svgs: SvgAsset[];
   backgrounds: BackgroundAsset[];
   animations: AnimationAsset[];
-  text: string[];
-  tts_audio_url?: string[];
+  text: string[]
 }
 interface StoryLineResultsProps {
   showResultPopup: boolean;
@@ -23,7 +33,6 @@ interface StoryLineResultsProps {
   sentences: string[];
   setShowResultPopup: (open: boolean) => void;
 }
-
 const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   showResultPopup,
   payloads,
@@ -31,15 +40,9 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   setShowResultPopup,
 }) => {
   const store = useContext(StoreContext);
-  const [previewSceneIdx, setPreviewSceneIdx] = useState<number | null>(null);
-
-  useEffect(() => {
-    if (!showResultPopup && store.previewCanvas) {
-      store.previewCanvas.dispose();
-      store.setPreviewCanvas(null);
-    }
-  }, [showResultPopup, store]);
-
+  if (!showResultPopup) return null;
+  const [tempScenes, setTempScenes] = React.useState([]);
+  const [editingSceneIndex, setEditingSceneIndex] = React.useState<number | null>(null);
   const download = async (path: string, filename: string) => {
     try {
       const res = await fetch(`${API_URL}${path}`, {
@@ -65,52 +68,72 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
     }
   };
 
+   React.useEffect(() => {
+    if (payloads.length > 0 && tempScenes.length === 0) {
+      setTempScenes(payloads.map(p => ({ ...p })));
+    }
+  }, [payloads]);
+
+
+  const handleEditScene = (index: number) => {
+    setEditingSceneIndex(index);
+  };
+
+  const handleSaveEditedScene = (editedScene: ScenePayloadWithEdits) => {
+    setTempScenes(prev => 
+      prev.map((scene, i) => 
+        i === editingSceneIndex ? editedScene : scene
+      )
+    );
+    setEditingSceneIndex(null);
+  };
+
+
+
+
   const handleAddToCanvas = () => {
-    payloads.forEach(scenePayload => {
+    tempScenes.forEach((scenePayload) => {
       store.addSceneResource({
-        backgrounds: scenePayload.backgrounds,
-        gifs: scenePayload.svgs,
+        backgrounds: scenePayload.editedBackgrounds || scenePayload.backgrounds,
+        gifs: scenePayload.editedSvgs || scenePayload.svgs,
         animations: scenePayload.animations,
         elements: [],
-        text: scenePayload.text,
-        tts_audio_url: scenePayload.tts_audio_url,
+        text: scenePayload.editedText || scenePayload.text,
+        tts_audio_url: scenePayload.tts_audio_url
       });
     });
     store.refreshElements();
     setShowResultPopup(false);
-    setPreviewSceneIdx(null);
+    setTempScenes([]);  
   };
-
-  if (!showResultPopup) return null;
-
   return (
     <div className="popup_overlay">
       <div className="popup_content">
+        {editingSceneIndex !== null && (
+        <SceneEditor
+          scene={tempScenes[editingSceneIndex]}
+          onSave={handleSaveEditedScene}
+          onClose={() => setEditingSceneIndex(null)}
+        />
+      )}
         <button
           className="popup_close"
-          onClick={() => {
-            setShowResultPopup(false);
-            setPreviewSceneIdx(null);
-          }}
+          onClick={() => setShowResultPopup(false)}
         >
           <FaTimes />
         </button>
-
         <div className="st_line_wrap_outer">
-          {payloads.map((payload, sceneIdx) => {
+          {tempScenes.map((payload, sceneIdx) => {
             const hasAny =
               payload.svgs.length > 0 ||
               payload.backgrounds.length > 0 ||
               payload.animations.length > 0;
             return (
-              <div
-                key={sceneIdx}
-                className="st_wrapper_inner cursor-pointer"
-                onClick={() => setPreviewSceneIdx(sceneIdx)}
-              >
+              <div key={sceneIdx} className="st_wrapper_inner"  onClick={() => handleEditScene(sceneIdx)}>
                 <div className="heading">
                   <h3>Scene {sceneIdx + 1}</h3>
                 </div>
+                
                 <div className="playloads">
                   {!hasAny ? (
                     <p className="text-sm text-gray-500">
@@ -135,10 +158,7 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
                         <div className="char_type">
                           {payload.svgs.map((svg, i) => (
                             <div key={i} className="svg_type_img">
-                              <img
-                                src={svg.svg_url}
-                                alt={svg.tags.join(', ')}
-                              />
+                              <img src={svg.svg_url} alt={svg.tags.join(', ')} />
                             </div>
                           ))}
                         </div>
@@ -151,27 +171,9 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
           })}
         </div>
 
-        {previewSceneIdx !== null && (
-          <div className="canvas_wrapper">
-            <div className="preview_overlay">
-              <PreviewCanvas
-                scene={payloads[previewSceneIdx]}
-                width={700}
-                height={450}
-                onDispose={() => store.setPreviewCanvas(null)}
-              />
-              <button
-                className="button_c_scene"
-                onClick={() => setPreviewSceneIdx(null)}
-              >
-                Save Preview
-              </button>
-            </div>
-          </div>
-        )}
-
         <div className="st_line_buttons_outer">
           <div className="st_line_buttons_inner space-x-2">
+
             <button
               className="buttons"
               onClick={() => download('/download-all-images', 'all_images.zip')}
