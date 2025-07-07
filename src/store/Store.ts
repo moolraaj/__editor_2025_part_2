@@ -58,6 +58,8 @@ export class Store {
   selectLayerObject?: (elementId: string) => void;
   audioRegistry: Map<string, HTMLAudioElement> = new Map();
   _lastTime: number = 0
+  previewCanvas: fabric.Canvas | null = null;
+
   constructor() {
     this.canvas = null
     this.videos = []
@@ -78,6 +80,18 @@ export class Store {
 
     makeAutoObservable(this)
   }
+
+
+
+    setPreviewCanvas(canvas: fabric.Canvas | null) {
+    this.previewCanvas = canvas;
+  }
+
+
+
+
+
+
   getMaxTime(): number {
     const sceneMax = this.scenes.reduce(
       (maxEnd, scene) => Math.max(maxEnd, scene.timeFrame.end),
@@ -501,15 +515,15 @@ export class Store {
     if (!scene) return;
     const removeById = <T extends { id: string }>(arr?: T[]) =>
       arr?.filter(item => item.id !== layerId);
-     //@ts-ignore
+    //@ts-ignore
     scene.backgrounds = removeById(scene.backgrounds);
-     //@ts-ignore
+    //@ts-ignore
     scene.gifs = removeById(scene.gifs);
-     //@ts-ignore
+    //@ts-ignore
     scene.animations = removeById(scene.animations);
-     //@ts-ignore
+    //@ts-ignore
     scene.elements = removeById(scene.elements);
-     //@ts-ignore
+    //@ts-ignore
     scene.text = removeById(scene.text);
     scene.tts = removeById(scene.tts);
     if (this.canvas) {

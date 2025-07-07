@@ -1,26 +1,21 @@
 'use client';
 
-import React, { useContext } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { FaTimes } from 'react-icons/fa';
 import { API_URL } from '@/utils/constants';
 import { StoreContext } from '@/store';
+import { PreviewCanvas } from './TempCanvas';
+ 
 
-interface SvgAsset {
-  tags: string[];
-  svg_url: string;
-}
-interface BackgroundAsset {
-  name: string;
-  background_url: string;
-}
-interface AnimationAsset {
-  name: string;
-}
+interface SvgAsset { tags: string[]; svg_url: string; }
+interface BackgroundAsset { name: string; background_url: string; }
+interface AnimationAsset { name: string; }
 interface ScenePayload {
   svgs: SvgAsset[];
   backgrounds: BackgroundAsset[];
   animations: AnimationAsset[];
-  text: string[]
+  text: string[];
+  tts_audio_url?: string[];
 }
 interface StoryLineResultsProps {
   showResultPopup: boolean;
@@ -28,6 +23,7 @@ interface StoryLineResultsProps {
   sentences: string[];
   setShowResultPopup: (open: boolean) => void;
 }
+
 const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   showResultPopup,
   payloads,
@@ -35,7 +31,15 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   setShowResultPopup,
 }) => {
   const store = useContext(StoreContext);
-  if (!showResultPopup) return null;
+  const [previewSceneIdx, setPreviewSceneIdx] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!showResultPopup && store.previewCanvas) {
+      store.previewCanvas.dispose();
+      store.setPreviewCanvas(null);
+    }
+  }, [showResultPopup, store]);
+
   const download = async (path: string, filename: string) => {
     try {
       const res = await fetch(`${API_URL}${path}`, {
@@ -61,39 +65,37 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
     }
   };
 
-
-
-
   const handleAddToCanvas = () => {
-    payloads.forEach((scenePayload) => {
+    payloads.forEach(scenePayload => {
       store.addSceneResource({
-        //@ts-ignore
         backgrounds: scenePayload.backgrounds,
-        //@ts-ignore
         gifs: scenePayload.svgs,
-        //@ts-ignore
         animations: scenePayload.animations,
-        //@ts-ignore
         elements: [],
-        //@ts-ignore
         text: scenePayload.text,
-        //@ts-ignore
-        tts_audio_url: scenePayload.tts_audio_url 
-       
+        tts_audio_url: scenePayload.tts_audio_url,
       });
     });
     store.refreshElements();
     setShowResultPopup(false);
+    setPreviewSceneIdx(null);
   };
+
+  if (!showResultPopup) return null;
+
   return (
     <div className="popup_overlay">
       <div className="popup_content">
         <button
           className="popup_close"
-          onClick={() => setShowResultPopup(false)}
+          onClick={() => {
+            setShowResultPopup(false);
+            setPreviewSceneIdx(null);
+          }}
         >
           <FaTimes />
         </button>
+
         <div className="st_line_wrap_outer">
           {payloads.map((payload, sceneIdx) => {
             const hasAny =
@@ -101,7 +103,11 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
               payload.backgrounds.length > 0 ||
               payload.animations.length > 0;
             return (
-              <div key={sceneIdx} className="st_wrapper_inner">
+              <div
+                key={sceneIdx}
+                className="st_wrapper_inner cursor-pointer"
+                onClick={() => setPreviewSceneIdx(sceneIdx)}
+              >
                 <div className="heading">
                   <h3>Scene {sceneIdx + 1}</h3>
                 </div>
@@ -129,7 +135,10 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
                         <div className="char_type">
                           {payload.svgs.map((svg, i) => (
                             <div key={i} className="svg_type_img">
-                              <img src={svg.svg_url} alt={svg.tags.join(', ')} />
+                              <img
+                                src={svg.svg_url}
+                                alt={svg.tags.join(', ')}
+                              />
                             </div>
                           ))}
                         </div>
@@ -142,9 +151,27 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
           })}
         </div>
 
+        {previewSceneIdx !== null && (
+          <div className="canvas_wrapper">
+            <div className="preview_overlay">
+              <PreviewCanvas
+                scene={payloads[previewSceneIdx]}
+                width={700}
+                height={450}
+                onDispose={() => store.setPreviewCanvas(null)}
+              />
+              <button
+                className="button_c_scene"
+                onClick={() => setPreviewSceneIdx(null)}
+              >
+                Save Preview
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className="st_line_buttons_outer">
           <div className="st_line_buttons_inner space-x-2">
-
             <button
               className="buttons"
               onClick={() => download('/download-all-images', 'all_images.zip')}

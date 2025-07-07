@@ -474,7 +474,6 @@
 //           }
 //         });
 //       }
-
 //       if (scene.backgrounds) {
 //         scene.backgrounds.forEach((bg, i) => {
 //           if (!scene.fabricObjects.backgrounds[i]) {
@@ -515,9 +514,10 @@
 
 
 
+
+
+
 //     };
-
-
 //     sceneSegments.forEach(({ sc }) => {
 //       const idx = sc.properties.sceneIndex;
 //       const scene = this.scenes[idx];
@@ -795,3 +795,327 @@
 //     </div>
 //   );
 // });
+
+
+
+
+
+
+
+
+
+
+
+
+// import React, { useContext, useState, useEffect, useRef } from 'react';
+// import { FaTimes } from 'react-icons/fa';
+// import { fabric } from 'fabric';
+// import { API_URL } from '@/utils/constants';
+// import { StoreContext } from '@/store';
+
+// // ----- Types -----
+// interface SvgAsset {
+//   tags: string[];
+//   svg_url: string;
+//   x?: number;
+//   y?: number;
+//   scaleX?: number;
+//   scaleY?: number;
+// }
+
+// interface BackgroundAsset {
+//   name: string;
+//   background_url: string;
+//   x?: number;
+//   y?: number;
+//   scaleX?: number;
+//   scaleY?: number;
+// }
+
+// interface OtherElement {
+//   id: string;
+//   url: string;
+//   x?: number;
+//   y?: number;
+//   scaleX?: number;
+//   scaleY?: number;
+// }
+
+// interface ScenePayload {
+//   svgs: SvgAsset[];
+//   backgrounds: BackgroundAsset[];
+//   elements?: OtherElement[]; // nested elements
+//   tts_audio_url?: string;
+//   text?: string[];
+// }
+
+// interface StoryLineResultsProps {
+//   showResultPopup: boolean;
+//   payloads: ScenePayload[];
+//   sentences: string[];
+//   setShowResultPopup: (open: boolean) => void;
+// }
+
+// // ----- Main Component -----
+// const StoryLineResults: React.FC<StoryLineResultsProps> = ({
+//   showResultPopup,
+//   payloads,
+//   sentences,
+//   setShowResultPopup,
+// }) => {
+//   const store = useContext(StoreContext);
+//   const [selectedScene, setSelectedScene] = useState<number | null>(null);
+
+//   if (!showResultPopup) return null;
+
+//   // Download all images as ZIP
+//   const downloadAll = async () => {
+//     try {
+//       const res = await fetch(`${API_URL}/download-all-images`, {
+//         method: 'POST',
+//         headers: { 'Content-Type': 'application/json' },
+//         body: JSON.stringify({ texts: sentences }),
+//       });
+//       if (!res.ok) throw new Error(res.statusText);
+//       const blob = await res.blob();
+//       const url = URL.createObjectURL(blob);
+//       const a = document.createElement('a');
+//       a.href = url;
+//       a.download = 'all_images.zip';
+//       document.body.appendChild(a);
+//       a.click();
+//       document.body.removeChild(a);
+//       URL.revokeObjectURL(url);
+//     } catch (err) {
+//       console.error('Error downloading images:', err);
+//     }
+//   };
+
+//   // Add all scenes to store
+//   const handleAddAllToCanvas = () => {
+//     payloads.forEach(scene => {
+//       store.addSceneResource({
+//         backgrounds: scene.backgrounds,
+//         gifs: scene.svgs,
+//         animations: [],
+//         elements: scene.elements || [],
+//         text: scene.text || [],
+//         tts_audio_url: scene.tts_audio_url || ''
+//       });
+//     });
+//     store.refreshElements();
+//     setShowResultPopup(false);
+//   };
+
+//   return (
+//     <div className="popup_overlay">
+//       <div className="popup_content">
+//         <button className="popup_close" onClick={() => setShowResultPopup(false)}>
+//           <FaTimes />
+//         </button>
+
+//         {/* Scene grid */}
+//         <div className="st_line_wrap_outer">
+//           {payloads.map((scene, idx) => (
+//             <div
+//               key={idx}
+//               className="st_wrapper_inner"
+//               onClick={() => setSelectedScene(idx)}
+//             >
+//               <div className="heading">
+//                 <h3>Scene {idx + 1}</h3>
+//               </div>
+//               <div className="playloads">
+//                 {/* background thumbnail */}
+//                 {scene.backgrounds[0] && (
+//                   <div className="p_outer_wrapper">
+//                     <div className="p_inner_wrapper">
+//                       <img
+//                         src={scene.backgrounds[0].background_url}
+//                         alt={scene.backgrounds[0].name}
+//                         className="p_img"
+//                       />
+//                     </div>
+//                   </div>
+//                 )}
+//                 {/* svg thumbnails */}
+//                 {scene.svgs.length > 0 && (
+//                   <div className="char_type">
+//                     {scene.svgs.map((svg, i) => (
+//                       <div key={i} className="svg_type_img">
+//                         <img
+//                           src={svg.svg_url}
+//                           alt={svg.tags.join(', ')}
+//                           className="svg_thumb"
+//                         />
+//                       </div>
+//                     ))}
+//                   </div>
+//                 )}
+//                 {/* element thumbnails */}
+//                 {scene.elements && scene.elements.length > 0 && (
+//                   <div className="char_type">
+//                     {scene.elements.map((el, i) => (
+//                       <div key={i} className="svg_type_img">
+//                         <img src={el.url} alt={`elem-${i}`} className="svg_thumb" />
+//                       </div>
+//                     ))}
+//                   </div>
+//                 )}
+//               </div>
+//             </div>
+//           ))}
+//         </div>
+
+//         {/* Buttons */}
+//         <div className="st_line_buttons_outer">
+//           <div className="st_line_buttons_inner space-x-2">
+//             <button className="buttons" onClick={downloadAll}>
+//               Download All Images
+//             </button>
+//             <button className="buttons" onClick={handleAddAllToCanvas}>
+//               Add To Canvas
+//             </button>
+//           </div>
+//         </div>
+
+//         {/* Editor popup */}
+//         {selectedScene !== null && (
+//           <SceneEditPopup
+//             payload={payloads[selectedScene]}
+//             onClose={() => setSelectedScene(null)}
+//             onSave={updated => {
+//               store.updateSceneAssets(selectedScene, updated);
+//               setSelectedScene(null);
+//             }}
+//           />
+//         )}
+//       </div>
+//     </div>
+//   );
+// };
+
+// // ----- Single Scene Edit Popup -----
+// interface SceneEditPopupProps {
+//   payload: ScenePayload;
+//   onClose: () => void;
+//   onSave: (updated: {
+//     backgrounds: BackgroundAsset[];
+//     svgs: SvgAsset[];
+//     elements?: OtherElement[];
+//   }) => void;
+// }
+
+// const SceneEditPopup: React.FC<SceneEditPopupProps> = ({ payload, onClose, onSave }) => {
+//   const canvasEl = useRef<HTMLCanvasElement>(null);
+//   const [canvas, setCanvas] = useState<fabric.Canvas | null>(null);
+//   const [layers, setLayers] = useState<{
+//     id: string;
+//     name: string;
+//     type: 'bg' | 'svg' | 'element';
+//     obj?: fabric.Image;
+//   }[]>([]);
+
+//   // Init canvas
+//   useEffect(() => {
+//     if (!canvasEl.current) return;
+//     const c = new fabric.Canvas(canvasEl.current, { width: 800, height: 500 });
+//     setCanvas(c);
+//     return () => c.dispose();
+//   }, []);
+
+//   // Load payload into canvas
+//   useEffect(() => {
+//     if (!canvas) return;
+//     canvas.clear();
+//     const w = canvas.getWidth();
+//     const h = canvas.getHeight();
+//     const temp: typeof layers = [];
+
+//     // BG layer
+//     const bgAsset = payload.backgrounds[0];
+//     if (bgAsset) {
+//       fabric.Image.fromURL(bgAsset.background_url, img => {
+//         const sx = w / (img.width || 1);
+//         const sy = h / (img.height || 1);
+//         img.set({ left: 0, top: 0, scaleX: sx, scaleY: sy, selectable: false, evented: false });
+//         canvas.add(img).sendToBack(img);
+//         temp.push({ id: 'bg-0', name: 'Background', type: 'bg', obj: img });
+//         setLayers([...temp]);
+//         canvas.renderAll();
+//       }, { crossOrigin: 'anonymous' });
+//     }
+
+//     // SVG layers
+//     payload.svgs.forEach((svg, i) => {
+//       fabric.Image.fromURL(svg.svg_url, img => {
+//         img.set({ left: svg.x ?? 30 + i*50, top: svg.y ?? 50 + i*10, scaleX: svg.scaleX ?? 0.5, scaleY: svg.scaleY ?? 0.5, selectable: true });
+//         canvas.add(img);
+//         temp.push({ id: `svg-${i}`, name: `SVG ${i+1}`, type: 'svg', obj: img });
+//         setLayers([...temp]);
+//         canvas.renderAll();
+//       }, { crossOrigin: 'anonymous' });
+//     });
+
+//     // Other elements
+//     payload.elements?.forEach((el, i) => {
+//       fabric.Image.fromURL(el.url, img => {
+//         img.set({ left: el.x ?? 100, top: el.y ?? 100, scaleX: el.scaleX ?? 0.2, scaleY: el.scaleY ?? 0.2, selectable: true });
+//         canvas.add(img);
+//         temp.push({ id: `el-${i}`, name: `Element ${i+1}`, type: 'element', obj: img });
+//         setLayers([...temp]);
+//         canvas.renderAll();
+//       }, { crossOrigin: 'anonymous' });
+//     });
+//   }, [canvas, payload]);
+
+//   // Remove
+//   const removeLayer = (id: string) => {
+//     if (!canvas) return;
+//     const layer = layers.find(l => l.id === id);
+//     if (layer?.obj) canvas.remove(layer.obj);
+//     setLayers(l => l.filter(x => x.id !== id));
+//     canvas.renderAll();
+//   };
+
+//   // Save
+//   const handleSave = () => {
+//     if (!canvas) return;
+//     const svgsOut: SvgAsset[] = [];
+//     const elsOut: OtherElement[] = [];
+//     layers.forEach(l => {
+//       if (l.type === 'svg' && l.obj) {
+//         svgsOut.push({ tags: [], svg_url: (l.obj._element as HTMLImageElement).src, x: l.obj.left!, y: l.obj.top!, scaleX: l.obj.scaleX!, scaleY: l.obj.scaleY! });
+//       }
+//       if (l.type === 'element' && l.obj) {
+//         elsOut.push({ id: l.id, url: (l.obj._element as HTMLImageElement).src, x: l.obj.left!, y: l.obj.top!, scaleX: l.obj.scaleX!, scaleY: l.obj.scaleY! });
+//       }
+//     });
+//     onSave({ backgrounds: payload.backgrounds, svgs: svgsOut, elements: elsOut });
+//   };
+
+//   return (
+//     <div className="popup_overlay">
+//       <div className="popup_content">
+//         <button className="popup_close" onClick={onClose}><FaTimes/></button>
+//         <div className='element_'>
+//           <canvas ref={canvasEl} />
+//           <div className="layers_panel">
+//             {layers.map(l => (
+//               <div key={l.id} className="layer_item">
+//                 <span
+//                   style={{ cursor: 'pointer' }}
+//                   onClick={() => { if (canvas && l.obj) { canvas.setActiveObject(l.obj); canvas.requestRenderAll(); } }}
+//                 >{l.name}</span>
+//                 <FaTimes onClick={() => removeLayer(l.id)} style={{ cursor: 'pointer', marginLeft: 8 }} />
+//               </div>
+//             ))}
+//             <button className="buttons" onClick={handleSave}>Save</button>
+//           </div>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// };
+
+// export default StoryLineResults;
