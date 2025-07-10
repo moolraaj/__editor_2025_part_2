@@ -113,6 +113,12 @@ h3.l_label {
   text-transform: capitalize;
 }
 
+.upload_svg {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+
 .scene-layers-list ul {
   display: flex;
   flex-direction: column;

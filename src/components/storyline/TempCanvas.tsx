@@ -4,6 +4,7 @@ import { StoreContext } from '@/store';
 import { observer } from 'mobx-react-lite';
 import { ScenePayloadWithEdits } from '@/types';
 
+
 interface SceneEditorProps {
   scene: ScenePayloadWithEdits;
   onSave: (editedScene: ScenePayloadWithEdits) => void;
@@ -23,69 +24,22 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
   const fileInputRef = useRef<HTMLInputElement>(null);
 
 
-  const handleSvgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !store.sceneCanvas || !store.editedScene) return;
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.type !== "image/svg+xml") {
+      alert("Only SVG files are allowed!");
+      return;
+    }
 
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const svgContent = ev.target?.result as string;
-      if (!svgContent) return;
-
-      const elementId = `svg-${sceneIndex}-child-${Date.now()}`;
-
-
-      //@ts-ignore
-      const canvasCenterX = store.sceneCanvas.width! / 2;
-      //@ts-ignore
-      const canvasCenterY = store.sceneCanvas.height! / 2;
-
-      // Update store with centered position
-      store.setEditedScene({
-        //@ts-ignore
-        ...store.editedScene!,
-        elements: [
-          //@ts-ignore
-          ...(store.editedScene!.elements || []),
-          { id: elementId, type: 'svg', content: svgContent, tags: ['uploaded'] }
-        ],
-        elementPositions: {
-          //@ts-ignore
-          ...store.editedScene!.elementPositions,
-          [elementId]: {
-            x: canvasCenterX,
-            y: canvasCenterY,
-            scaleX: 0.4,
-            scaleY: 0.4,
-            angle: 0
-          }
-        }
-      });
-
-
-      fabric.loadSVGFromString(svgContent, (objects, options) => {
-        objects.forEach((obj, i) => {
-          (obj as any).name = (obj as any).id || `path-${i}`;
-        });
-        const group = fabric.util.groupSVGElements(objects, options);
-        group.set({
-          left: canvasCenterX,
-          top: canvasCenterY,
-          originX: 'center',
-          originY: 'center',
-          scaleX: 0.4,
-          scaleY: 0.4,
-          selectable: true,
-          name: elementId,
-          data: { type: 'svg', id: elementId, uploaded: true }
-        });
-        store.sceneCanvas!.add(group);
-        setupObjectControls(group);
-        store.sceneCanvas!.renderAll();
-      });
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        store.addSvgResource(e.target.result as string);
+      }
     };
-    reader.readAsText(file);
-    fileInputRef.current!.value = '';
+    reader.readAsDataURL(file);
   };
 
   function recolorGroupPaths(
@@ -206,7 +160,7 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
     //@ts-ignore
     sceneData.svgs.forEach((layer, index) => {
       const url = layer.svg_url;
-      const id = `svg-${index}`;
+      const id = `svg-${index}-child`;
       const pos = sceneData.elementPositions?.[id] || {
         x: 20 + 30 * index,
         y: 20 + 30 * index,
@@ -253,27 +207,27 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
     sceneData.text?.forEach((text, index) => {
       const editedText = sceneData.editedText?.[index] || text;
       const txt = new fabric.Textbox(editedText, {
-        left: sceneData.elementPositions?.[`text-${index}`]?.x || 50,
-        top: sceneData.elementPositions?.[`text-${index}`]?.y || 50 + (index * 60),
+        left: sceneData.elementPositions?.[`text-${index}-child`]?.x || 50,
+        top: sceneData.elementPositions?.[`text-${index}-child`]?.y || 50 + (index * 60),
         width: 300,
-        fontSize: sceneData.textProperties?.[`text-${index}`]?.fontSize || 24,
-        fontFamily: sceneData.textProperties?.[`text-${index}`]?.fontFamily || 'Arial',
+        fontSize: sceneData.textProperties?.[`text-${index}-child`]?.fontSize || 24,
+        fontFamily: sceneData.textProperties?.[`text-${index}-child`]?.fontFamily || 'Arial',
         fill: sceneData.textProperties?.[`text-${index}`]?.fill || '#000000',
         selectable: true,
-        name: `text-${index}`,
-        data: { type: 'text', id: `text-${index}` }
+        name: `text-${index}-child`,
+        data: { type: 'text', id: `text-${index}-child` }
       });
       canvas.add(txt);
       setupObjectControls(txt);
     });
     sceneData.tts_audio_url?.forEach((audioUrl, index) => {
       const audioIcon = new fabric.Text('🔊', {
-        left: sceneData.elementPositions?.[`tts-${index}`]?.x || 700,
-        top: sceneData.elementPositions?.[`tts-${index}`]?.y || 20 + (index * 30),
+        left: sceneData.elementPositions?.[`tts-${index}-child`]?.x || 700,
+        top: sceneData.elementPositions?.[`tts-${index}-child`]?.y || 20 + (index * 30),
         fontSize: 24,
         selectable: true,
-        name: `tts-${index}`,
-        data: { type: 'tts', id: `tts-${index}` }
+        name: `tts-${index}-child`,
+        data: { type: 'tts', id: `tts-${index}-child` }
       });
       canvas.add(audioIcon);
       setupObjectControls(audioIcon);
@@ -573,7 +527,7 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
 
   useEffect(() => {
     const canvas = fabricRef.current!;
-    // recursive walker
+  
     function dumpLayers(obj: fabric.Object): any {
       const out: any = {
         type: obj.type,
@@ -604,166 +558,185 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
   }, []);
 
 
+
+
   return (
-    <div className="ed_fixed">
-      <div className="editor_wrap">
-        <div className="editor-header">
-          <button onClick={onClose}>×</button>
-        </div>
 
-        <div className="upload-svg-container">
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept=".svg"
-            onChange={handleSvgUpload}
-            style={{ display: 'none' }}
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="upload-svg-btn"
-          >
-            Upload SVG
-          </button>
-        </div>
+    <>
 
-        <div className="scene-editor-modal">
-          <div className="t_l_m">
-            <div className="editor-container">
-              <canvas
-                id="temp-canvas"
-                ref={canvasRef}
-                width={800}
-                height={500}
-              />
+      <div className="ed_fixed">
+        <div className="editor_wrap">
+          <div className="editor-header">
+            <button onClick={onClose}>×</button>
+          </div>
+
+          <div className="upload-svg-container">
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept=".svg"
+              onChange={handleFileChange}
+              style={{ display: 'none' }}
+              id={`image-${sceneIndex}`}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="upload-svg-btn"
+            >
+              Upload SVG
+            </button>
+          </div>
+
+
+
+          <div className="scene-editor-modal">
+
+            <div className="upload_svg">
+            
+
             </div>
 
-            <div className="mod_layerr">
-              <div className="scene-layers-list">
-                <h3 className='l_label'>All Layers</h3>
-                <ul>
-                  {canvasObjects
-                    .filter(obj => obj.name !== 'background-layer')
-                    .map(obj => (
-                      <li
-                        key={obj.name}
-                        className={`flex space-x-2 ${store.activeLayer === obj.name ? 'active-layer' : ''}`}
-                      >
-                        <button onClick={() => handleSelectLayer(obj.name!)}>
-                          {obj.name}
-                        </button>
-                        <button
-                          onClick={() => handleDeleteLayer(obj.name!)}
-                          title="Delete this layer"
-                          className="delete-btn"
-                        >
-                          ×
-                        </button>
-                      </li>
-                    ))}
-                </ul>
+
+            <div className="t_l_m">
+              <div className="editor-container">
+                <canvas
+                  id="temp-canvas"
+                  ref={canvasRef}
+                  width={800}
+                  height={500}
+                />
               </div>
-              <div className="layer-properties-panel">
-                <h3 className='l_label'>Layer Properties</h3>
-                {store.layerProperties ? (
-                  <div className="property-grid">
-                    {store.layerProperties.type === 'text' && (
-                      <>
-                        <div className="property-row">
-                          <label>Text Content</label>
 
-
-                        </div>
-                        <div className="property-row">
-                          <label>Font Size</label>
-
-                          <p>{store.layerProperties.fontSize || 24}</p>
-                        </div>
-                        <div className="property-row">
-                          <label>Font Family</label>
-                          <select
-                            value={store.layerProperties.fontFamily || 'Arial'}
-                            onChange={(e) => handlePropertyChange('fontFamily', e.target.value)}
+              <div className="mod_layerr">
+                <div className="scene-layers-list">
+                  <h3 className='l_label'>All Layers</h3>
+                  <ul>
+                    {canvasObjects
+                      .filter(obj => obj.name !== 'background-layer')
+                      .map(obj => (
+                        <li
+                          key={obj.name}
+                          className={`flex space-x-2 ${store.activeLayer === obj.name ? 'active-layer' : ''}`}
+                        >
+                          <button onClick={() => handleSelectLayer(obj.name!)}>
+                            {obj.name}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteLayer(obj.name!)}
+                            title="Delete this layer"
+                            className="delete-btn"
                           >
-                            <option value="Arial">Arial</option>
-                            <option value="Verdana">Verdana</option>
-                            <option value="Helvetica">Helvetica</option>
-                          </select>
-                        </div>
-                      </>
-                    )}
-
-                    <div className="property-row">
-                      <label>Color</label>
-                      <input
-                        type="color"
-                        value={store.layerProperties.fill || '#000000'}
-                        onChange={(e) => handlePropertyChange('fill', e.target.value)}
-                      />
-
-                    </div>
-
-                    <div className="layers_pos">
-                      {store.layerProperties ? (
+                            ×
+                          </button>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+                <div className="layer-properties-panel">
+                  <h3 className='l_label'>Layer Properties</h3>
+                  {store.layerProperties ? (
+                    <div className="property-grid">
+                      {store.layerProperties.type === 'text' && (
                         <>
                           <div className="property-row">
-                            <label>Position X</label>
-                            <p>{Math.round(store.layerProperties.left ?? 0)}</p>
-                          </div>
+                            <label>Text Content</label>
 
-                          <div className="property-row">
-                            <label>Position Y</label>
-                            <p>{Math.round(store.layerProperties.top ?? 0)}</p>
-                          </div>
 
-                          <div className="property-row">
-                            <label>Rotation</label>
-                            <p>{Math.round(store.layerProperties.angle ?? 0)}</p>
                           </div>
-
                           <div className="property-row">
-                            <label>Scale X</label>
-                            <p>{(store.layerProperties.scaleX ? Math.round(store.layerProperties.scaleX * 100) / 100 : 1)}</p>
+                            <label>Font Size</label>
+
+                            <p>{store.layerProperties.fontSize || 24}</p>
                           </div>
-
                           <div className="property-row">
-                            <label>Scale Y</label>
-                            <p>{(store.layerProperties.scaleY ? Math.round(store.layerProperties.scaleY * 100) / 100 : 1)}</p>
+                            <label>Font Family</label>
+                            <select
+                              value={store.layerProperties.fontFamily || 'Arial'}
+                              onChange={(e) => handlePropertyChange('fontFamily', e.target.value)}
+                            >
+                              <option value="Arial">Arial</option>
+                              <option value="Verdana">Verdana</option>
+                              <option value="Helvetica">Helvetica</option>
+                            </select>
                           </div>
                         </>
-                      ) : (
-                        <div className="property-row">
-                          <p>No layer selected</p>
-                        </div>
                       )}
+
+                      <div className="property-row">
+                        <label>Color</label>
+                        <input
+                          type="color"
+                          value={store.layerProperties.fill || '#000000'}
+                          onChange={(e) => handlePropertyChange('fill', e.target.value)}
+                        />
+
+                      </div>
+
+                      <div className="layers_pos">
+                        {store.layerProperties ? (
+                          <>
+                            <div className="property-row">
+                              <label>Position X</label>
+                              <p>{Math.round(store.layerProperties.left ?? 0)}</p>
+                            </div>
+
+                            <div className="property-row">
+                              <label>Position Y</label>
+                              <p>{Math.round(store.layerProperties.top ?? 0)}</p>
+                            </div>
+
+                            <div className="property-row">
+                              <label>Rotation</label>
+                              <p>{Math.round(store.layerProperties.angle ?? 0)}</p>
+                            </div>
+
+                            <div className="property-row">
+                              <label>Scale X</label>
+                              <p>{(store.layerProperties.scaleX ? Math.round(store.layerProperties.scaleX * 100) / 100 : 1)}</p>
+                            </div>
+
+                            <div className="property-row">
+                              <label>Scale Y</label>
+                              <p>{(store.layerProperties.scaleY ? Math.round(store.layerProperties.scaleY * 100) / 100 : 1)}</p>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="property-row">
+                            <p>No layer selected</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="no-layer-selected">
+                  ) : (
+                    <div className="no-layer-selected">
 
-                  </div>
-                )}
+                    </div>
+                  )}
+                </div>
+
+
+
               </div>
-
-
 
             </div>
 
           </div>
 
-        </div>
 
 
 
-        <div className="editor-controls">
-          <button onClick={handleSave} className="save-btn">
-            Save Changes
-          </button>
-          <button onClick={onClose} className="close-btn">
-            Close
-          </button>
+
+          <div className="editor-controls">
+            <button onClick={handleSave} className="save-btn">
+              Save Changes
+            </button>
+            <button onClick={onClose} className="close-btn">
+              Close
+            </button>
+          </div>
         </div>
       </div>
-    </div>
+
+    </>
   );
 });

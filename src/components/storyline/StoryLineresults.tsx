@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { FaTimes } from 'react-icons/fa';
 import { API_URL } from '@/utils/constants';
 import { StoreContext } from '@/store';
@@ -44,6 +44,11 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   const [tempScenes, setTempScenes] = React.useState<ScenePayloadWithEdits[]>([]);
   const [editingSceneIndex, setEditingSceneIndex] = React.useState<number | null>(null);
 
+  useEffect(() => {
+    console.log(`tempScenes`)
+    console.log(tempScenes)
+  }, [])
+
 
   React.useEffect(() => {
     if (showResultPopup && payloads.length > 0 && tempScenes.length === 0) {
@@ -56,6 +61,8 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
         tts_audio_url: p.tts_audio_url || [],
         elementPositions: {},
         textProperties: {},
+        elements: [] as ScenePayloadWithEdits['elements'],
+
       }));
       setTempScenes(initial);
     }
@@ -89,8 +96,12 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
 
   const handleSaveEditedScene = (edited: ScenePayloadWithEdits) => {
     setTempScenes(prev =>
-      prev.map((s, i) => (i === editingSceneIndex ? edited : s))
-    );
+      prev.map((s, i) => (i === editingSceneIndex ? {
+        ...edited,
+        svgs: s.svgs || [],
+        backgrounds: s.backgrounds || [],
+      } : s)
+      ));
     setEditingSceneIndex(null);
   };
 

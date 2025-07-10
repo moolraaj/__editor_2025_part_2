@@ -238,7 +238,7 @@ export class Store {
 
     const nestedGifLayers = (scene.gifs || []).map((gif, i) => ({
       ...gif,
-      id: `svg-${i}`,
+      id: `svg-${i}-child`,
       layerType: 'svg' as const,
       timeFrame: { start: sceneStart, end: sceneStart + NESTED_DURATION_MS },
       calculatedPosition: this.calculateSvgPositions((scene.gifs || []).length)[i]
@@ -247,7 +247,7 @@ export class Store {
 
     const nestedAnimLayers = (scene.animations || []).map((anim, i) => ({
       ...anim,
-      id: `animation-${i}`,
+      id: `animation-${i}-child`,
       layerType: 'animation' as const,
       timeFrame: { start: sceneStart, end: sceneStart + NESTED_DURATION_MS }
     }));
@@ -262,7 +262,7 @@ export class Store {
 
 
     const nestedTextLayers = (scene.text || []).map((txt, i) => ({
-      id: `text-${i}`,
+      id: `text-${i}-child`,
       value: txt,
       layerType: 'text' as const,
       placement: {
@@ -277,7 +277,7 @@ export class Store {
 
     //@ts-ignore
     const nestedTtsLayers = (scene.tts_audio_url || []).map((url, i) => ({
-      id: `tts-${i}`,
+      id: `tts-${i}-child`,
       audioUrl: url,
       layerType: 'tts' as const,
       timeFrame: { start: sceneStart, end: sceneStart + NESTED_DURATION_MS },
@@ -1760,6 +1760,8 @@ export class Store {
       },
     })
   }
+
+
   addSvg(index: number) {
     console.log('Adding SVG:', index)
 
@@ -1939,9 +1941,6 @@ export class Store {
       })
       .catch((error) => console.error('⚠️ Error fetching SVG:', error))
   }
-
-
-
 
   addAudio(index: number) {
     const audioElement = document.getElementById(`audio-${index}`);
