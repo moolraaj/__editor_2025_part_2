@@ -60,7 +60,7 @@ export class Store {
   audioRegistry: Map<string, HTMLAudioElement> = new Map();
   _lastTime: number = 0
   previewCanvas: fabric.Canvas | null = null;
-  layerProperties:  LayerProperties | null = null;
+  layerProperties: LayerProperties | null = null;
   editedScene: null = null;
   activeLayer: string | null = null;
   sceneCanvas: fabric.Canvas | null = null;
@@ -2818,6 +2818,7 @@ export class Store {
           sceneData.backgrounds?.forEach((bg, index) => {
             const { start, end } = bg.timeFrame;
             if (now >= start && now <= end && bg.background_url) {
+              //@ts-ignore
               if (!sceneData.fabricObjects.backgrounds[index]) {
                 fabric.Image.fromURL(bg.background_url, img => {
                   const scaleX = width / (img.width || 1);
@@ -2831,6 +2832,7 @@ export class Store {
                     selectable: false,
                     evented: true,
                   });
+                  //@ts-ignore
                   sceneData.fabricObjects.backgrounds[index] = img;
                   addObjectToScene(img, {
                     zIndex: 0,
@@ -2841,6 +2843,7 @@ export class Store {
                   renderAllParts();
                 }, { crossOrigin: 'anonymous' });
               } else {
+                //@ts-ignore
                 const bgImg = sceneData.fabricObjects.backgrounds[index];
                 bgImg.set({ visible: true });
                 addObjectToScene(bgImg, {

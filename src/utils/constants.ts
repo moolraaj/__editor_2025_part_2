@@ -1,3 +1,5 @@
+import { useEffect } from "react";
+
 export const GLOBAL_ELEMENTS_TIME=30 
 export const SCENE_ELEMENTS_TIME=5
 export const SCENE_ELEMENTS_LAYERS_TIME=3
@@ -36,7 +38,10 @@ export const HANDSTAND:string='handstand'
 export const VIDEO_EXPORT_LENGTH=600
 
 // export const API_URL="https://python-nlp-2025.onrender.com"
-export const  API_URL="http://localhost:8000"
+// export const  API_URL="http://localhost:8000"
+export const  API_URL=process.env.NEXT_PUBLIC_API_URL
+
+
 
 
 export function showLoading() {
