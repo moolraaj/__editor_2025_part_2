@@ -1,14 +1,12 @@
-
-
-
-
 'use client';
 
 import React, { useContext } from 'react';
 import { FaTimes } from 'react-icons/fa';
 import { API_URL } from '@/utils/constants';
 import { StoreContext } from '@/store';
-import  {SceneEditor}  from './TempCanvas';
+import { SceneEditor } from './TempCanvas';
+import { ScenePayloadWithEdits } from '@/types';
+
 
 interface SvgAsset {
   tags: string[];
@@ -22,17 +20,20 @@ interface AnimationAsset {
   name: string;
 }
 interface ScenePayload {
-  svgs: SvgAsset[];
-  backgrounds: BackgroundAsset[];
-  animations: AnimationAsset[];
-  text: string[]
+  svgs?: SvgAsset[];
+  backgrounds?: BackgroundAsset[];
+  animations?: AnimationAsset[];
+  text?: string[];
+  tts_audio_url?: string[];
 }
+
 interface StoryLineResultsProps {
   showResultPopup: boolean;
   payloads: ScenePayload[];
   sentences: string[];
   setShowResultPopup: (open: boolean) => void;
 }
+
 const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   showResultPopup,
   payloads,
@@ -40,9 +41,26 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   setShowResultPopup,
 }) => {
   const store = useContext(StoreContext);
-  if (!showResultPopup) return null;
-  const [tempScenes, setTempScenes] = React.useState([]);
+  const [tempScenes, setTempScenes] = React.useState<ScenePayloadWithEdits[]>([]);
   const [editingSceneIndex, setEditingSceneIndex] = React.useState<number | null>(null);
+
+
+  React.useEffect(() => {
+    if (showResultPopup && payloads.length > 0 && tempScenes.length === 0) {
+
+      const initial = payloads.map(p => ({
+        ...p,
+        editedBackgrounds: p.backgrounds || [],
+        editedSvgs: p.svgs || [],
+        editedText: p.text || [],
+        tts_audio_url: p.tts_audio_url || [],
+        elementPositions: {},
+        textProperties: {},
+      }));
+      setTempScenes(initial);
+    }
+  }, [showResultPopup, payloads, tempScenes.length]);
+
   const download = async (path: string, filename: string) => {
     try {
       const res = await fetch(`${API_URL}${path}`, {
@@ -50,10 +68,7 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ texts: sentences }),
       });
-      if (!res.ok) {
-        console.error(`Download failed: ${res.statusText}`);
-        return;
-      }
+      if (!res.ok) throw new Error(res.statusText);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -64,76 +79,78 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      console.error('Error downloading file:', err);
+      console.error('Download failed:', err);
     }
   };
-
-   React.useEffect(() => {
-    if (payloads.length > 0 && tempScenes.length === 0) {
-      setTempScenes(payloads.map(p => ({ ...p })));
-    }
-  }, [payloads]);
-
 
   const handleEditScene = (index: number) => {
     setEditingSceneIndex(index);
   };
 
-  const handleSaveEditedScene = (editedScene: ScenePayloadWithEdits) => {
-    setTempScenes(prev => 
-      prev.map((scene, i) => 
-        i === editingSceneIndex ? editedScene : scene
-      )
+  const handleSaveEditedScene = (edited: ScenePayloadWithEdits) => {
+    setTempScenes(prev =>
+      prev.map((s, i) => (i === editingSceneIndex ? edited : s))
     );
     setEditingSceneIndex(null);
   };
 
 
-
-
+  console.log(`tempScenes`)
+  console.log(tempScenes)
   const handleAddToCanvas = () => {
-    tempScenes.forEach((scenePayload) => {
+    tempScenes.forEach(scenePayload => {
       store.addSceneResource({
-        backgrounds: scenePayload.editedBackgrounds || scenePayload.backgrounds,
-        gifs: scenePayload.editedSvgs || scenePayload.svgs,
-        animations: scenePayload.animations,
+        //@ts-ignore
+        backgrounds: scenePayload.editedBackgrounds!,
+        //@ts-ignore
+        gifs: scenePayload.editedSvgs!,
+        //@ts-ignore
+        animations: scenePayload.animations || [],
+        //@ts-ignore
         elements: [],
-        text: scenePayload.editedText || scenePayload.text,
-        tts_audio_url: scenePayload.tts_audio_url
+        //@ts-ignore
+        text: scenePayload.editedText!,
+        //@ts-ignore
+        tts_audio_url: scenePayload.tts_audio_url!,
       });
     });
     store.refreshElements();
     setShowResultPopup(false);
-    setTempScenes([]);  
+    setTempScenes([]);
   };
+
+  if (!showResultPopup) return null;
+
   return (
     <div className="popup_overlay">
       <div className="popup_content">
         {editingSceneIndex !== null && (
-        <SceneEditor
-          scene={tempScenes[editingSceneIndex]}
-          onSave={handleSaveEditedScene}
-          onClose={() => setEditingSceneIndex(null)}
-        />
-      )}
-        <button
-          className="popup_close"
-          onClick={() => setShowResultPopup(false)}
-        >
+          <SceneEditor
+            scene={tempScenes[editingSceneIndex]!}
+            onSave={handleSaveEditedScene}
+            onClose={() => setEditingSceneIndex(null)}
+            sceneIndex={editingSceneIndex}
+          />
+        )}
+        <button className="popup_close" onClick={() => setShowResultPopup(false)}>
           <FaTimes />
         </button>
         <div className="st_line_wrap_outer">
-          {tempScenes.map((payload, sceneIdx) => {
-            const hasAny =
-              payload.svgs.length > 0 ||
-              payload.backgrounds.length > 0 ||
-              payload.animations.length > 0;
+          {tempScenes.map((payload, idx) => {
+            const backgrounds = payload.backgrounds || [];
+            const svgs = payload.svgs || [];
+            const animations = payload.animations || [];
+            const hasAny = backgrounds.length > 0 || svgs.length > 0 || animations.length > 0;
+
             return (
-              <div key={sceneIdx} className="st_wrapper_inner"  onClick={() => handleEditScene(sceneIdx)}>
+              <div
+                key={idx}
+                className="st_wrapper_inner"
+                onClick={() => handleEditScene(idx)}
+              >
                 <div className="heading">
-                  <h3>Scene {sceneIdx + 1}</h3>
+                  <h3>Scene {idx + 1}</h3>
                 </div>
-                
                 <div className="playloads">
                   {!hasAny ? (
                     <p className="text-sm text-gray-500">
@@ -141,9 +158,10 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
                     </p>
                   ) : (
                     <>
-                      {payload.backgrounds.length > 0 && (
+                      {backgrounds.length > 0 && (
                         <div className="p_outer_wrapper">
-                          {payload.backgrounds.slice(0, 1).map((bg, i) => (
+
+                          {backgrounds.slice(0, 1).map((bg: any, i: number) => (
                             <div key={i} className="p_inner_wrapper">
                               <img
                                 src={bg.background_url}
@@ -154,11 +172,14 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
                           ))}
                         </div>
                       )}
-                      {payload.svgs.length > 0 && (
+                      {svgs.length > 0 && (
                         <div className="char_type">
-                          {payload.svgs.map((svg, i) => (
+                          {svgs.map((svg: any, i: number) => (
                             <div key={i} className="svg_type_img">
-                              <img src={svg.svg_url} alt={svg.tags.join(', ')} />
+                              <img
+                                src={svg.svg_url}
+                                alt={svg.tags.join(', ')}
+                              />
                             </div>
                           ))}
                         </div>
@@ -170,10 +191,8 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
             );
           })}
         </div>
-
         <div className="st_line_buttons_outer">
           <div className="st_line_buttons_inner space-x-2">
-
             <button
               className="buttons"
               onClick={() => download('/download-all-images', 'all_images.zip')}

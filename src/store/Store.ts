@@ -22,6 +22,7 @@ import {
   SceneEditorElement,
   Scene,
   SceneLayer,
+  LayerProperties,
 } from '../types'
 import { FabricUitls } from '@/utils/fabric-utils'
 import { FFmpeg } from '@ffmpeg/ffmpeg'
@@ -59,6 +60,20 @@ export class Store {
   audioRegistry: Map<string, HTMLAudioElement> = new Map();
   _lastTime: number = 0
   previewCanvas: fabric.Canvas | null = null;
+  layerProperties:  LayerProperties | null = null;
+  editedScene: null = null;
+  activeLayer: string | null = null;
+  sceneCanvas: fabric.Canvas | null = null;
+  sceneLayerPositions: Record<string, Record<string, {
+    x: number;
+    y: number;
+    scaleX: number;
+    scaleY: number;
+    angle: number;
+  }>> = {};
+  sceneModifiedStates?: Set<number>;
+
+
 
   constructor() {
     this.canvas = null
@@ -83,9 +98,89 @@ export class Store {
 
 
 
-    setPreviewCanvas(canvas: fabric.Canvas | null) {
+  setPreviewCanvas(canvas: fabric.Canvas | null) {
     this.previewCanvas = canvas;
   }
+
+  setActiveLayer(layer: string | null) {
+    this.activeLayer = layer;
+  }
+
+  setSceneCanvas(canvas: fabric.Canvas | null) {
+    this.sceneCanvas = canvas;
+  }
+
+
+  setLayerProperties(properties: any) {
+    this.layerProperties = properties
+  }
+
+  setEditedScene(scene: any) {
+    this.editedScene = scene;
+  }
+
+
+  updateSceneElementPosition(id: string, position: {
+    x: number; y: number; scaleX: number; scaleY: number; angle: number
+  }) {
+    if (!this.editedScene) return;
+
+    this.editedScene = {
+      //@ts-ignore
+      ...this.editedScene,
+      elementPositions: {
+        //@ts-ignore
+        ...this.editedScene.elementPositions,
+        [id]: position
+      }
+    };
+  }
+
+  updateSceneTextProperties(id: string, properties: {
+    text?: string;
+    fontSize?: number;
+    fontFamily?: string;
+    fill?: string
+  }) {
+    if (!this.editedScene) return;
+    //@ts-ignore
+    const updated = { ...this.editedScene };
+
+    if (properties.text !== undefined) {
+      const textIndex = parseInt(id.split('-')[1]);
+      if (updated.text && updated.text[textIndex]) {
+        updated.editedText = updated.editedText || [...updated.text];
+        updated.editedText[textIndex] = properties.text;
+      }
+    }
+
+    updated.textProperties = updated.textProperties || {};
+    updated.textProperties[id] = {
+      ...updated.textProperties[id],
+      ...properties
+    };
+
+    this.editedScene = updated;
+  }
+
+
+  setSceneLayerPosition(sceneId: string, layerId: string, position: {
+    x: number;
+    y: number;
+    scaleX: number;
+    scaleY: number;
+    angle: number;
+  }) {
+    if (!this.sceneLayerPositions[sceneId]) {
+      this.sceneLayerPositions[sceneId] = {};
+    }
+    this.sceneLayerPositions[sceneId][layerId] = position;
+  }
+
+  getSceneLayerPositions(sceneId: string) {
+    return this.sceneLayerPositions[sceneId] || {};
+  }
+
 
 
 
@@ -131,73 +226,71 @@ export class Store {
     const sceneEnd = sceneStart + SCENE_DURATION_MS;
 
 
-    const processLayers = <T extends { id?: string }>(
-      items: T[] | undefined,
-      type: string,
-      defaultDuration = NESTED_DURATION_MS
-    ) => {
-      return (items || []).map((item, i) => {
-        const raw = item as T & { timeFrame?: { duration?: number } };
-        return {
-          ...item,
-          id: raw.id ?? `${type}-${idx}-${i}`,
-          layerType: type,
-          timeFrame: {
-            start: sceneStart,
-            end: sceneStart + (raw.timeFrame?.duration ?? defaultDuration),
-          },
-        };
-      });
-    };
+    const nestedBgLayers = (scene.backgrounds || [])
+      .slice(1)
+      .map((bg, i) => ({
+        ...bg,
+        id: `bg-${i}`,
+        layerType: 'background' as const,
+        timeFrame: { start: sceneStart, end: sceneStart + NESTED_DURATION_MS }
+      }));
 
 
-
-    const bgImage = scene.backgrounds?.[0]?.background_url || null;
-    const nestedBgLayers = processLayers(scene.backgrounds?.slice(1), "background");
-    const nestedGifLayers = processLayers(scene.gifs, "svg").map((gif, i) => ({
+    const nestedGifLayers = (scene.gifs || []).map((gif, i) => ({
       ...gif,
-      calculatedPosition: scene.gifs?.length ? this.calculateSvgPositions(scene.gifs.length)[i] : null
+      id: `svg-${i}`,
+      layerType: 'svg' as const,
+      timeFrame: { start: sceneStart, end: sceneStart + NESTED_DURATION_MS },
+      calculatedPosition: this.calculateSvgPositions((scene.gifs || []).length)[i]
     }));
-    const nestedAnimLayers = processLayers(scene.animations, "animation");
-    const nestedElemLayers = processLayers(scene.elements, "element");
 
 
-    const textArray = scene.text || [];
-    const nestedTextLayers = textArray.length > 0 ? [{
-      id: `text-${idx}`,
-      value: textArray[0],
-      layerType: "text" as const,
+    const nestedAnimLayers = (scene.animations || []).map((anim, i) => ({
+      ...anim,
+      id: `animation-${i}`,
+      layerType: 'animation' as const,
+      timeFrame: { start: sceneStart, end: sceneStart + NESTED_DURATION_MS }
+    }));
+
+
+    const nestedElemLayers = (scene.elements || []).map((el, i) => ({
+      ...el,
+      id: `element-${i}`,
+      layerType: 'element' as const,
+      timeFrame: { start: sceneStart, end: sceneStart + NESTED_DURATION_MS }
+    }));
+
+
+    const nestedTextLayers = (scene.text || []).map((txt, i) => ({
+      id: `text-${i}`,
+      value: txt,
+      layerType: 'text' as const,
       placement: {
-        x: 20, y: 20,
+        x: 20,
+        y: 20,
         width: (this.canvas?.width ?? 800) - 40,
-        height: undefined,
+        height: undefined
       },
       properties: { fontSize: 24, fontFamily: "Arial", fill: "#000" },
-      timeFrame: { start: sceneStart, end: sceneStart + NESTED_DURATION_MS },
-    }] : [];
+      timeFrame: { start: sceneStart, end: sceneStart + NESTED_DURATION_MS }
+    }));
 
-
-
-    const ttsAudioUrl = scene.tts_audio_url?.[0] || null;
-    console.log(`ttsAudioUrl`)
-    console.log(ttsAudioUrl)
-    const fullUrl = `${API_URL}${ttsAudioUrl}`
-    const nestedTtsLayers = ttsAudioUrl ? [{
-      id: `tts-${idx}`,
-      audioUrl: ttsAudioUrl,
-      layerType: "tts" as const,
+    //@ts-ignore
+    const nestedTtsLayers = (scene.tts_audio_url || []).map((url, i) => ({
+      id: `tts-${i}`,
+      audioUrl: url,
+      layerType: 'tts' as const,
       timeFrame: { start: sceneStart, end: sceneStart + NESTED_DURATION_MS },
       played: false,
+      audioElement: Object.assign(new Audio(`${API_URL}${url}`), { preload: 'auto' })
+    }));
 
-      audioElement: Object.assign(new Audio(fullUrl), { preload: 'auto' })
-    }] : [];
 
-    // Create scene object
     const sceneObj = {
       id: sceneId,
       name: `Scene ${idx + 1}`,
       layerType: "scene" as const,
-      bgImage,
+      bgImage: scene.backgrounds?.[0]?.background_url || null,
       timeFrame: { start: sceneStart, end: sceneEnd },
       backgrounds: nestedBgLayers,
       gifs: nestedGifLayers,
@@ -206,15 +299,19 @@ export class Store {
       text: nestedTextLayers,
       tts: nestedTtsLayers,
     };
+
     //@ts-ignore
     this.scenes.push(sceneObj);
+
+
     const sceneElem: SceneEditorElement = {
       id: sceneObj.id,
       name: sceneObj.name,
       type: "scene",
       //@ts-ignore
       placement: {
-        x: 0, y: 0,
+        x: 0,
+        y: 0,
         width: this.canvas?.width ?? 800,
         height: this.canvas?.height ?? 600,
       },
@@ -222,11 +319,8 @@ export class Store {
       properties: {
         sceneIndex: idx,
         bgImage: sceneObj.bgImage,
-        //@ts-ignore
         backgrounds: sceneObj.backgrounds,
-        //@ts-ignore
         gifs: sceneObj.gifs,
-        //@ts-ignore
         animations: sceneObj.animations,
         elements: sceneObj.elements,
         //@ts-ignore
@@ -237,10 +331,12 @@ export class Store {
     };
     this.editorElements.push(sceneElem);
 
+
     this.maxTime = this.getMaxTime();
     this.scenesTotalTime = this.getScenesTotalTime();
     this.refreshAnimations();
   }
+
 
   private calculateSvgPositions(count: number): { x: number, y: number, width: number, height: number }[] {
     if (count === 0) return [];
@@ -1246,21 +1342,32 @@ export class Store {
       console.warn('No SVG selected.');
       return;
     }
+
+    // Clear previous animation instances when reassigning.
     this.clearCurrentAnimations();
+
+    // Set new animation type.
     this.selectedElement.properties.animationType = animationType;
     this.updateEditorElement(this.selectedElement);
+
     console.log(
       `Assigned animation: ${animationType} to ${this.selectedElement.id}`
     );
   }
   applyWalkingAnimation(svgElement: fabric.Group) {
     if (!svgElement) return;
+
+    // Cancel any previous animations.
     this.clearCurrentAnimations();
+
+    // Flatten the structure.
     const allObjects = this.getAllObjectsRecursively(svgElement);
     console.log(
       'Available SVG Parts:',
       allObjects.map((obj) => (obj as any).dataName || obj.name)
     );
+
+    // Animate each part based on walkingAnimations.
     Object.entries(walkingAnimations).forEach(([partId, animationData]) => {
       const targetElement = allObjects.find(
         (obj) => ((obj as any).dataName || obj.name) === partId
@@ -1283,6 +1390,8 @@ export class Store {
       });
       this.currentAnimations.push(animInstance);
     });
+
+    // Animate the whole group moving forward.
     const groupAnim = anime({
       targets: svgElement,
       left: [
@@ -1376,15 +1485,21 @@ export class Store {
 
   applyHandstandAnimation(svgElement: fabric.Group) {
     if (!svgElement) return;
+
+    // Cancel any previous animations.
     this.clearCurrentAnimations();
+
     console.log(
       `🤸 Handstand animation started for SVG ID: ${this.selectedElement?.id}`
     );
+
+    // Flatten the structure (using the same approach as in walking animation).
     const allObjects = this.getAllObjectsRecursively(svgElement);
     console.log(
       '🔍 Available SVG Parts:',
       allObjects.map((obj) => (obj as any).dataName || obj.name)
     );
+
     Object.entries(handstandAnimation).forEach(([partId, animationData]) => {
       const targetElement = allObjects.find(
         (obj) => ((obj as any).dataName || obj.name) === partId
@@ -1393,10 +1508,17 @@ export class Store {
         console.warn(`⚠️ Missing SVG part: ${partId}, skipping animation.`);
         return;
       }
+
+      // Reset the angle to ensure a clean start.
       targetElement.set('angle', 0);
+
+      // For the hand (or any other part that needs repositioning), adjust its origin once.
       if (partId === 'hand') {
         targetElement.setPositionByOrigin(new fabric.Point(-1, -180), 'center', 'top');
       }
+
+      console.log(`✅ Found SVG part: ${partId}, applying handstand animation`);
+
       const animInstance = anime({
         targets: { angle: targetElement.angle || 0 },
         angle: animationData.keys.map((k) => k.v),
@@ -1404,6 +1526,7 @@ export class Store {
         easing: 'linear',
         loop: true,
         update: (anim) => {
+          // Update the target's angle property on each frame.
           targetElement.set('angle', Number(anim.animations[0].currentValue));
           this.canvas?.renderAll();
         },
@@ -1518,6 +1641,9 @@ export class Store {
         el.fabricObject.visible = isInside;
       }
     });
+    this.updateAudioElements()
+    this.updateVideoElements()
+    this.updateSvgElements()
     this.updateAudioElements();
     this.canvas?.requestRenderAll();
   }
@@ -1636,6 +1762,7 @@ export class Store {
   }
   addSvg(index: number) {
     console.log('Adding SVG:', index)
+
     const svgElement = document.getElementById(
       `svg-${index}`
     ) as HTMLImageElement | null
@@ -1643,9 +1770,11 @@ export class Store {
       console.error('SVG Element not found:', `svg-${index}`)
       return
     }
+
     const id = getUid()
     const parser = new DOMParser()
     const serializer = new XMLSerializer()
+
     fetch(svgElement.src)
       .then((response) => response.text())
       .then((svgText) => {
@@ -1658,7 +1787,7 @@ export class Store {
           serializer.serializeToString(svgRoot),
           (objects) => {
             if (!objects || objects.length === 0) {
-              console.error(' Failed to load SVG objects')
+              console.error('🚨 Failed to load SVG objects')
               return
             }
             const objectMap = new Map<string, fabric.Object>()
@@ -1749,6 +1878,7 @@ export class Store {
             const canvasHeight = this.canvas?.height ?? 600
             const groupWidth = fullSvgGroup.width || 0
             const groupHeight = fullSvgGroup.height || 0
+
             fullSvgGroup.set({
               left: canvasWidth / 2 - (groupWidth * scaleFactor) / 2,
               top: canvasHeight / 2 - (groupHeight * scaleFactor) / 2,
@@ -1760,23 +1890,26 @@ export class Store {
               objectCaching: false,
 
             })
+
             this.canvas?.add(fullSvgGroup)
             this.canvas?.renderAll()
+
             console.log(
-              'SVG Added to Canvas. Canvas Objects:',
+              '✅ SVG Added to Canvas. Canvas Objects:',
               this.canvas?.getObjects()
             )
             const addedSvg = fullSvgGroup.toSVG()
-            console.log('Full SVG Group as SVG:\n', addedSvg)
+            console.log('🖼️ Full SVG Group as SVG:\n', addedSvg)
             console.log(
               'Available SVG Parts for Animation:',
               allParts.map((p) => p.id)
             )
             const allNestedObjects = this.getAllObjectsRecursively(fullSvgGroup)
             console.log(
-              ' All nested objects (including sub-groups and paths):',
+              '🔎 All nested objects (including sub-groups and paths):',
               allNestedObjects
             )
+
             const editorElement: SvgEditorElement = {
               id,
               name: `SVG ${index + 1}`,
@@ -1798,13 +1931,16 @@ export class Store {
               },
               fabricObject: fullSvgGroup,
             }
+
             this.addEditorElement(editorElement)
             this.setSelectedElement(editorElement)
           }
         )
       })
-      .catch((error) => console.error(' Error fetching SVG:', error))
+      .catch((error) => console.error('⚠️ Error fetching SVG:', error))
   }
+
+
 
 
   addAudio(index: number) {
@@ -1965,7 +2101,7 @@ export class Store {
               )
               if (!targetElement) {
                 console.warn(
-                  ` ⚠️ Missing SVG part: ${partId}, skipping walking angle update.`
+                  `⚠️ Missing SVG part: ${partId}, skipping walking angle update.`
                 )
                 return
               }
@@ -2461,13 +2597,18 @@ export class Store {
                   angle: element.placement.rotation,
                   selectable: true,
                 })
+
                 element.fabricObject = group
                 this.canvas?.add(group)
                 this.canvas?.renderAll()
+
+                // Add modification listener
                 this.canvas?.on('object:modified', (e) => {
                   if (!e.target || e.target !== group) return
+
                   const target = e.target
                   const placement = element.placement
+
                   const newPlacement = {
                     ...placement,
                     x: target.left ?? placement.x,
@@ -2476,6 +2617,7 @@ export class Store {
                     scaleX: target.scaleX ?? placement.scaleX,
                     scaleY: target.scaleY ?? placement.scaleY,
                   }
+
                   this.updateEditorElement({
                     ...element,
                     placement: newPlacement,
@@ -2538,14 +2680,22 @@ export class Store {
           })
           break
         }
-
         case 'scene': {
           if (element.properties.sceneIndex !== this.activeSceneIndex) {
             break;
           }
+
+          const sceneId = `scene-${element.properties.sceneIndex}`;
           const sceneData = this.scenes[element.properties.sceneIndex];
+
+
+          const initialLayerPositions = this.sceneModifiedStates?.has(element.properties.sceneIndex)
+            ? {}
+            : this.getSceneLayerPositions(sceneId);
+
           const { x, y, width, height } = element.placement;
           const now = this.currentTimeInMs;
+
           if (!sceneData.fabricObjects) {
             sceneData.fabricObjects = {
               background: null,
@@ -2557,6 +2707,7 @@ export class Store {
               tts: []
             };
           }
+
           canvas.clear();
           const parts: fabric.Object[] = [];
           const sceneObjectsMap: { [key: string]: fabric.Object } = {};
@@ -2566,6 +2717,11 @@ export class Store {
             source: any;
             timeFrame?: { start: number; end: number };
           }) => {
+            const editedTextProps = data.source.type === 'text'
+              //@ts-ignore
+              ? this.editedScene?.textProperties?.[data.elementId]
+              : null;
+
             obj.set({
               ...obj.toObject(),
               data,
@@ -2579,13 +2735,25 @@ export class Store {
               lockMovementY: data.zIndex === -1,
               lockScalingX: data.zIndex === -1,
               lockScalingY: data.zIndex === -1,
-              lockRotation: data.zIndex === -1
+              lockRotation: data.zIndex === -1,
+              left: initialLayerPositions[data.elementId]?.x ?? obj.left,
+              top: initialLayerPositions[data.elementId]?.y ?? obj.top,
+              scaleX: initialLayerPositions[data.elementId]?.scaleX ?? obj.scaleX ?? 1,
+              scaleY: initialLayerPositions[data.elementId]?.scaleY ?? obj.scaleY ?? 1,
+              angle: initialLayerPositions[data.elementId]?.angle ?? obj.angle ?? 0,
+              ...(editedTextProps && {
+                text: editedTextProps.text,
+                fontSize: editedTextProps.fontSize,
+                fontFamily: editedTextProps.fontFamily,
+                fill: editedTextProps.fill
+              })
             });
-
-
             sceneObjectsMap[data.elementId] = obj;
-
             obj.on('modified', () => {
+              if (!this.sceneModifiedStates) {
+                this.sceneModifiedStates = new Set();
+              }
+              this.sceneModifiedStates.add(element.properties.sceneIndex);
               if (data.source.placement) {
                 data.source.placement.x = obj.left ?? data.source.placement.x;
                 data.source.placement.y = obj.top ?? data.source.placement.y;
@@ -2594,8 +2762,6 @@ export class Store {
                 data.source.placement.rotation = obj.angle ?? 0;
               }
             });
-
-
             obj.on('selected', () => {
               obj.bringToFront();
               canvas.requestRenderAll();
@@ -2610,10 +2776,11 @@ export class Store {
               canvas.setActiveObject(obj);
               obj.bringToFront();
               canvas.requestRenderAll();
-
               obj.fire('selected');
             }
           };
+
+          // Background image handling
           if (sceneData.bgImage) {
             const { start: t0, end: t1 } = sceneData.timeFrame;
             if (now >= t0 && now <= t1) {
@@ -2646,10 +2813,11 @@ export class Store {
               }
             }
           }
+
+
           sceneData.backgrounds?.forEach((bg, index) => {
             const { start, end } = bg.timeFrame;
             if (now >= start && now <= end && bg.background_url) {
-              //@ts-ignore
               if (!sceneData.fabricObjects.backgrounds[index]) {
                 fabric.Image.fromURL(bg.background_url, img => {
                   const scaleX = width / (img.width || 1);
@@ -2663,7 +2831,6 @@ export class Store {
                     selectable: false,
                     evented: true,
                   });
-                  //@ts-ignore
                   sceneData.fabricObjects.backgrounds[index] = img;
                   addObjectToScene(img, {
                     zIndex: 0,
@@ -2673,9 +2840,20 @@ export class Store {
                   });
                   renderAllParts();
                 }, { crossOrigin: 'anonymous' });
+              } else {
+                const bgImg = sceneData.fabricObjects.backgrounds[index];
+                bgImg.set({ visible: true });
+                addObjectToScene(bgImg, {
+                  zIndex: 0,
+                  elementId: bg.id,
+                  source: bg,
+                  timeFrame: bg.timeFrame
+                });
               }
             }
           });
+
+
           sceneData.text?.forEach((textItem, index) => {
             const { start, end } = textItem.timeFrame;
             if (now >= start && now <= end) {
@@ -2723,7 +2901,6 @@ export class Store {
                   fill: textItem.properties.fill,
                   //@ts-ignore
                   width: textItem.placement.width,
-                  //@ts-ignore
                   visible: true,
                   selectable: true
                 });
@@ -2736,6 +2913,8 @@ export class Store {
               }
             }
           });
+
+
           sceneData.gifs?.forEach((gif, index) => {
             const { start, end } = gif.timeFrame;
             if (now < start || now > end) return;
@@ -2773,7 +2952,6 @@ export class Store {
 
                 obj.scaleToWidth(pos.width);
                 obj.scaleToHeight(pos.height);
-
                 //@ts-ignore
                 sceneData.fabricObjects.gifs[index] = obj;
                 addObjectToScene(obj, {
@@ -2820,12 +2998,8 @@ export class Store {
               }
             }
           });
-
-
-
           sceneData.tts?.forEach((ttsItem, i) => {
             const { audioUrl } = ttsItem as any;
-
 
             if (!ttsItem.audioElement && audioUrl) {
               const fullUrl = `${API_URL}${audioUrl}`;
@@ -2837,6 +3011,7 @@ export class Store {
                 ttsItem.played = false;
               });
             }
+
             const ICON_SIZE = 24;
             const padding = 10;
             const iconX = x + padding + (i * (ICON_SIZE + 5));
@@ -2851,7 +3026,6 @@ export class Store {
                 hoverCursor: 'pointer',
                 name: ttsItem.id,
               });
-
               //@ts-ignore
               sceneData.fabricObjects.tts[i] = icon;
               addObjectToScene(icon, {
@@ -2872,17 +3046,11 @@ export class Store {
               });
             }
           });
-
-
-
-
-
           sceneData.elements?.forEach((childElement) => {
             //@ts-ignore
             const existing = sceneData.fabricObjects.elements.find(
               el => el?.data?.elementId === childElement.id
             );
-
             if (existing) {
               existing.set({ visible: true, selectable: true });
               addObjectToScene(existing, {
@@ -2903,6 +3071,74 @@ export class Store {
               scaleY: 1,
             };
             switch (childElement.type) {
+              case 'svg': {
+                if (!childElement.fabricObject) {
+                  fabric.loadSVGFromURL(
+                    childElement.properties.src,
+                    (objects, options) => {
+                      const group = fabric.util.groupSVGElements(objects, {
+                        ...options,
+                        name: childElement.id,
+                        data: {
+                          elementId: childElement.id,
+                          isSvg: true
+                        },
+                        left: pos.x,
+                        top: pos.y,
+                        scaleX: pos.scaleX,
+                        scaleY: pos.scaleY,
+                        angle: pos.rotation,
+                        selectable: true,
+                        evented: true,
+                        visible: true,
+                        hoverCursor: 'move',
+                        hasControls: true,
+                        hasBorders: true,
+                        lockMovementX: false,
+                        lockMovementY: false,
+                        perPixelTargetFind: true
+                      });
+                      childElement.fabricObject = group;
+                      //@ts-ignore
+                      sceneData.fabricObjects.elements.push({
+                        ...childElement,
+                        //@ts-ignore
+                        fabricInstance: group
+                      });
+                      group.on('selected', () => {
+                        this.selectedElement = childElement;
+                      });
+                      canvas.add(group);
+                      canvas.requestRenderAll();
+                      group.on('modified', () => {
+                        const newPlacement = {
+                          ...childElement.placement,
+                          x: group.left,
+                          y: group.top,
+                          rotation: group.angle,
+                          scaleX: group.scaleX,
+                          scaleY: group.scaleY
+                        };
+                        this.updateEditorElement({
+                          ...childElement,
+                          //@ts-ignore
+                          placement: newPlacement
+                        });
+                      });
+                    }
+                  );
+                } else {
+                  childElement.fabricObject.set({
+                    visible: true,
+                    selectable: true
+                  });
+                  canvas.add(childElement.fabricObject);
+                  canvas.bringToFront(childElement.fabricObject);
+                  canvas.requestRenderAll();
+                }
+                break;
+              }
+
               case 'text': {
                 const obj = new fabric.Textbox(childElement.properties.text || 'Text', {
                   left: pos.x,
@@ -2933,7 +3169,6 @@ export class Store {
                 fabric.Image.fromURL(
                   src,
                   (img) => {
-
                     const ratioX = pos.width / (img.width || 1);
                     const ratioY = pos.height / (img.height || 1);
                     const scale = Math.min(ratioX, ratioY);
@@ -3001,6 +3236,7 @@ export class Store {
                   },
                   name: childElement.id
                 });
+
                 if (childElement.properties.src) {
                   const audio = document.createElement('audio');
                   audio.src = childElement.properties.src;
@@ -3029,23 +3265,21 @@ export class Store {
                 break;
               }
 
+
             }
           });
 
-
           const renderAllParts = () => {
-
             parts
               .sort((a, b) => (a.data?.zIndex || 0) - (b.data?.zIndex || 0))
               .forEach(obj => canvas.add(obj));
 
             canvas.requestRenderAll();
           };
+
           renderAllParts();
           break;
         }
-
-
         default: {
           throw new Error('Not implemented')
         }

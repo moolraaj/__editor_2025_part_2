@@ -1,78 +1,178 @@
-
-
-
-
-import React from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { fabric } from 'fabric';
+import { StoreContext } from '@/store';
+import { observer } from 'mobx-react-lite';
+import { ScenePayloadWithEdits } from '@/types';
 
 interface SceneEditorProps {
   scene: ScenePayloadWithEdits;
   onSave: (editedScene: ScenePayloadWithEdits) => void;
   onClose: () => void;
+  sceneIndex: number;
 }
 
-export const SceneEditor: React.FC<SceneEditorProps> = ({ scene, onSave, onClose }) => {
-  const [editedScene, setEditedScene] = React.useState<ScenePayloadWithEdits>({ ...scene });
-  const canvasRef = React.useRef<fabric.Canvas | null>(null);
-  const [activeLayer, setActiveLayer] = React.useState<string | null>(null);
-  const [layerProperties, setLayerProperties] = React.useState<any>(null);
+export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave, onClose, sceneIndex }) => {
+  const store = useContext(StoreContext);
+  const [canvasObjects, setCanvasObjects] = useState<fabric.Object[]>([]);
+  const sceneId = `scene-${sceneIndex}`;
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fabricRef = useRef<fabric.Canvas | null>(null);
 
-  // Initialize canvas and load all layers
-  React.useEffect(() => {
-    const canvas = new fabric.Canvas('temp-canvas', {
-      width: 650,
-      height: 450,
-      backgroundColor: '#f0f0f0',
-      preserveObjectStacking: true
+
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+
+  const handleSvgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !store.sceneCanvas || !store.editedScene) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const svgContent = ev.target?.result as string;
+      if (!svgContent) return;
+
+      const elementId = `svg-${sceneIndex}-child-${Date.now()}`;
+
+
+      //@ts-ignore
+      const canvasCenterX = store.sceneCanvas.width! / 2;
+      //@ts-ignore
+      const canvasCenterY = store.sceneCanvas.height! / 2;
+
+      // Update store with centered position
+      store.setEditedScene({
+        //@ts-ignore
+        ...store.editedScene!,
+        elements: [
+          //@ts-ignore
+          ...(store.editedScene!.elements || []),
+          { id: elementId, type: 'svg', content: svgContent, tags: ['uploaded'] }
+        ],
+        elementPositions: {
+          //@ts-ignore
+          ...store.editedScene!.elementPositions,
+          [elementId]: {
+            x: canvasCenterX,
+            y: canvasCenterY,
+            scaleX: 0.4,
+            scaleY: 0.4,
+            angle: 0
+          }
+        }
+      });
+
+
+      fabric.loadSVGFromString(svgContent, (objects, options) => {
+        objects.forEach((obj, i) => {
+          (obj as any).name = (obj as any).id || `path-${i}`;
+        });
+        const group = fabric.util.groupSVGElements(objects, options);
+        group.set({
+          left: canvasCenterX,
+          top: canvasCenterY,
+          originX: 'center',
+          originY: 'center',
+          scaleX: 0.4,
+          scaleY: 0.4,
+          selectable: true,
+          name: elementId,
+          data: { type: 'svg', id: elementId, uploaded: true }
+        });
+        store.sceneCanvas!.add(group);
+        setupObjectControls(group);
+        store.sceneCanvas!.renderAll();
+      });
+    };
+    reader.readAsText(file);
+    fileInputRef.current!.value = '';
+  };
+
+  function recolorGroupPaths(
+    group: fabric.Group,
+    newColor: string,
+    includeNames: string[] = [],
+    excludeNames: string[] = []
+  ) {
+    group.getObjects().forEach(obj => {
+      if (obj.type !== 'path') return;
+
+      const name = (obj as any).name as string | undefined;
+      if (!name) return;
+
+
+      if (includeNames.length && !includeNames.includes(name)) return;
+
+
+      if (excludeNames.includes(name)) return;
+
+      (obj as any).set('fill', newColor);
     });
-    canvasRef.current = canvas;
+    group.canvas?.requestRenderAll();
+  }
 
-    loadAllLayersToCanvas(canvas, editedScene);
 
+  useEffect(() => {
+    store.setEditedScene({ ...scene });
+    return () => {
+      store.setEditedScene(null);
+      store.setActiveLayer(null);
+      store.setSceneCanvas(null);
+    };
+  }, [scene, store]);
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    fabricRef.current = new fabric.Canvas(canvasRef.current, {
+      preserveObjectStacking: true,
+      width: 800,
+      height: 500,
+      backgroundColor: "#ededed",
+      selection: true,
+    });
+    store.setSceneCanvas(fabricRef.current);
+    if (store.editedScene) {
+      loadAllLayersToCanvas(fabricRef.current, store.editedScene);
+    }
+    const canvas = fabricRef.current;
+    const updateObjectsList = () => {
+      const objs = canvas.getObjects();
+      setCanvasObjects(objs);
+      const active = canvas.getActiveObject();
+      if (active) updateLayerProperties(active);
+    };
+    canvas.on('object:added', updateObjectsList);
+    canvas.on('object:removed', updateObjectsList);
+    canvas.on('object:modified', updateObjectsList);
+    canvas.on('mouse:up', updateObjectsList);
+    canvas.on('selection:created', e => {
+      if (e.selected?.length === 1) store.setActiveLayer(e.selected[0].name || null);
+    });
+    canvas.on('selection:cleared', () => store.setActiveLayer(null));
+
+    // cleanup only on unmount
     return () => {
       canvas.dispose();
+      store.setSceneCanvas(null);
     };
   }, []);
 
-  
-  React.useEffect(() => {
-    if (!activeLayer || !canvasRef.current) {
-      setLayerProperties(null);
-      return;
+
+  useEffect(() => {
+    if (!store.sceneCanvas) return;
+    if (!store.activeLayer && canvasObjects.length > 0) {
+      const firstSelectable = canvasObjects.find(obj => obj.selectable && obj.name !== 'background-layer');
+      if (firstSelectable) {
+        store.sceneCanvas.setActiveObject(firstSelectable);
+        store.setActiveLayer(firstSelectable.name || null);
+      }
     }
-
-    const canvas = canvasRef.current;
-    const obj = canvas.getObjects().find(o => o.name === activeLayer);
-    if (!obj) return;
-
-    const properties: any = {
-      name: activeLayer,
-      type: obj.data?.type,
-      left: obj.left,
-      top: obj.top,
-      angle: obj.angle,
-      scaleX: obj.scaleX,
-      scaleY: obj.scaleY
-    };
-
-    // Type-specific properties
-    if (obj instanceof fabric.Textbox) {
-      properties.text = obj.text;
-      properties.fontSize = obj.fontSize;
-      properties.fontFamily = obj.fontFamily;
-      properties.fill = obj.fill;
-    } else if (obj instanceof fabric.Group) {
-      properties.fill = obj.getObjects()[0]?.fill;
-    }
-
-    setLayerProperties(properties);
-  }, [activeLayer]);
+  }, [canvasObjects, store]);
 
   const loadAllLayersToCanvas = (canvas: fabric.Canvas, sceneData: ScenePayloadWithEdits) => {
     canvas.clear();
-
-    // 1. Background Layer (base layer)
+    //@ts-ignore
     if (sceneData.backgrounds.length > 0) {
+      //@ts-ignore
       const bg = sceneData.backgrounds[0];
       fabric.Image.fromURL(bg.background_url, img => {
         img.set({
@@ -87,8 +187,7 @@ export const SceneEditor: React.FC<SceneEditorProps> = ({ scene, onSave, onClose
         canvas.sendToBack(img);
       });
     }
-
-    // 2. Additional Background Layers
+    //@ts-ignore
     sceneData.backgrounds.slice(1).forEach((bg, index) => {
       fabric.Image.fromURL(bg.background_url, img => {
         img.set({
@@ -104,15 +203,19 @@ export const SceneEditor: React.FC<SceneEditorProps> = ({ scene, onSave, onClose
         setupObjectControls(img);
       });
     });
-
-    // 3. SVG/Character Layers
+    //@ts-ignore
     sceneData.svgs.forEach((layer, index) => {
       const url = layer.svg_url;
       const id = `svg-${index}`;
-      const pos = editedScene.elementPositions?.[id] || { x: 20 + 30 * index, y: 20 + 30 * index, scaleX: 0.4, scaleY: 0.4, angle: 0 };
+      const pos = sceneData.elementPositions?.[id] || {
+        x: 20 + 30 * index,
+        y: 20 + 30 * index,
+        scaleX: 0.4,
+        scaleY: 0.4,
+        angle: 0
+      };
 
       if (/\.svg(\?.*)?$/i.test(url)) {
-        // Real SVG: parse & group
         fabric.loadSVGFromURL(url, (objects, options) => {
           const group = fabric.util.groupSVGElements(objects, options);
           group.set({
@@ -130,7 +233,6 @@ export const SceneEditor: React.FC<SceneEditorProps> = ({ scene, onSave, onClose
           canvas.renderAll();
         });
       } else {
-        // Raster image (PNG, JPG, etc.)
         fabric.Image.fromURL(url, img => {
           img.set({
             left: pos.x,
@@ -140,7 +242,7 @@ export const SceneEditor: React.FC<SceneEditorProps> = ({ scene, onSave, onClose
             angle: pos.angle,
             selectable: true,
             name: id,
-            data: { type: 'svg', id }  // you can still call it “svg” semantically
+            data: { type: 'svg', id }
           });
           canvas.add(img);
           setupObjectControls(img);
@@ -148,14 +250,11 @@ export const SceneEditor: React.FC<SceneEditorProps> = ({ scene, onSave, onClose
         });
       }
     });
-
-
-    // 4. Text Layers
     sceneData.text?.forEach((text, index) => {
       const editedText = sceneData.editedText?.[index] || text;
       const txt = new fabric.Textbox(editedText, {
-        left: editedScene.elementPositions?.[`text-${index}`]?.x || 50,
-        top: editedScene.elementPositions?.[`text-${index}`]?.y || 50 + (index * 60),
+        left: sceneData.elementPositions?.[`text-${index}`]?.x || 50,
+        top: sceneData.elementPositions?.[`text-${index}`]?.y || 50 + (index * 60),
         width: 300,
         fontSize: sceneData.textProperties?.[`text-${index}`]?.fontSize || 24,
         fontFamily: sceneData.textProperties?.[`text-${index}`]?.fontFamily || 'Arial',
@@ -167,14 +266,10 @@ export const SceneEditor: React.FC<SceneEditorProps> = ({ scene, onSave, onClose
       canvas.add(txt);
       setupObjectControls(txt);
     });
-
-
-
-    // 6. TTS Audio Indicators
     sceneData.tts_audio_url?.forEach((audioUrl, index) => {
       const audioIcon = new fabric.Text('🔊', {
-        left: editedScene.elementPositions?.[`tts-${index}`]?.x || 700,
-        top: editedScene.elementPositions?.[`tts-${index}`]?.y || 20 + (index * 30),
+        left: sceneData.elementPositions?.[`tts-${index}`]?.x || 700,
+        top: sceneData.elementPositions?.[`tts-${index}`]?.y || 20 + (index * 30),
         fontSize: 24,
         selectable: true,
         name: `tts-${index}`,
@@ -184,112 +279,192 @@ export const SceneEditor: React.FC<SceneEditorProps> = ({ scene, onSave, onClose
       setupObjectControls(audioIcon);
     });
 
+    sceneData.elements?.forEach((element, index) => {
+      const pos = sceneData.elementPositions?.[element.id] || {
+        x: 20 + 30 * index,
+        y: 20 + 30 * index,
+        scaleX: 0.4,
+        scaleY: 0.4,
+        angle: 0
+      };
+
+      switch (element.type) {
+        case 'svg':
+          const loadSvg = (svgContent: string) => {
+            return new Promise<fabric.Object>((resolve, reject) => {
+              fabric.loadSVGFromString(svgContent, (objects, options) => {
+                try {
+                  const group = fabric.util.groupSVGElements(objects, options);
+
+                  // Use saved position or default to center
+                  const savedPos = sceneData.elementPositions?.[element.id] || {
+                    x: canvas.width! / 2,
+                    y: canvas.height! / 2,
+                    scaleX: 0.4,
+                    scaleY: 0.4,
+                    angle: 0
+                  };
+
+                  group.set({
+                    left: savedPos.x,
+                    top: savedPos.y,
+                    scaleX: savedPos.scaleX,
+                    scaleY: savedPos.scaleY,
+                    angle: savedPos.angle,
+                    selectable: true,
+                    name: element.id,
+                    data: {
+                      type: 'svg',
+                      id: element.id,
+                      uploaded: element.tags?.includes('uploaded')
+                    },
+                    originX: 'center',
+                    originY: 'center',
+                    // Bounding box styling
+                    borderColor: '#0099ff',
+                    cornerColor: '#0099ff',
+                    cornerSize: 10,
+                    transparentCorners: false
+                  });
+
+                  resolve(group);
+                } catch (error) {
+                  console.error('Error processing SVG:', error);
+                  reject(error);
+                }
+              });
+            });
+          };
+
+          if (element.content) {
+            loadSvg(element.content)
+              .then(group => {
+                canvas.add(group);
+                setupObjectControls(group);
+                canvas.requestRenderAll();
+              })
+              .catch(error => {
+                console.error('Failed to load SVG content:', error);
+                // Create placeholder
+                const placeholder = new fabric.Rect({
+                  left: pos.x,
+                  top: pos.y,
+                  width: 100,
+                  height: 100,
+                  fill: '#f0f0f0',
+                  stroke: '#999',
+                  selectable: true,
+                  name: element.id,
+                  data: { type: 'svg', id: element.id }
+                });
+                canvas.add(placeholder);
+                setupObjectControls(placeholder);
+              });
+          }
+          break;
+      }
+    });
+
     canvas.renderAll();
   };
 
   const setupObjectControls = (obj: fabric.Object) => {
     obj.on('selected', () => {
-      setActiveLayer(obj.name || null);
+      store.setActiveLayer(obj.name || null);
       obj.bringToFront();
     });
 
-    obj.on('modified', () => {
-      updateLayerProperties(obj);
-    });
-
-    obj.on('moving', () => {
-      updateLayerProperties(obj);
-    });
-
-    obj.on('scaling', () => {
-      updateLayerProperties(obj);
-    });
-
-    obj.on('rotating', () => {
-      updateLayerProperties(obj);
-    });
+    obj.on('modified', () => updateLayerProperties(obj));
+    obj.on('moving', () => updateLayerProperties(obj));
+    obj.on('scaling', () => updateLayerProperties(obj));
+    obj.on('rotating', () => updateLayerProperties(obj));
   };
 
   const updateLayerProperties = (obj: fabric.Object) => {
-    if (!obj.data) return;
+    if (!obj.data || !store.editedScene) return;
 
-    setEditedScene(prev => {
-      const updated = { ...prev };
-      const { type, id } = obj.data;
+    const { type, id } = obj.data;
+    const position = {
+      x: obj.left || 0,
+      y: obj.top || 0,
+      scaleX: obj.scaleX || 1,
+      scaleY: obj.scaleY || 1,
+      angle: obj.angle || 0
+    };
 
-      updated.elementPositions = updated.elementPositions || {};
-      updated.elementPositions[id] = {
-        x: obj.left || 0,
-        y: obj.top || 0,
-        scaleX: obj.scaleX || 1,
-        scaleY: obj.scaleY || 1,
-        angle: obj.angle || 0
-      };
+    store.updateSceneElementPosition(id, position);
 
-      if (type === 'text' && obj instanceof fabric.Textbox) {
-        const textIndex = parseInt(id.split('-')[1]);
-        if (updated.text && updated.text[textIndex]) {
-          updated.editedText = updated.editedText || [...updated.text];
-          updated.editedText[textIndex] = obj.text || '';
+    if (type === 'text' && obj instanceof fabric.Textbox) {
+      store.updateSceneTextProperties(id, {
+        text: obj.text,
+        fontSize: obj.fontSize,
+        fontFamily: obj.fontFamily,
+        //@ts-ignore
+        fill: obj.fill
+      });
+    }
 
-          updated.textProperties = updated.textProperties || {};
-          updated.textProperties[id] = {
-            fontSize: obj.fontSize,
-            fontFamily: obj.fontFamily,
-            fill: obj.fill
-          };
-        }
-      }
-
-      return updated;
-    });
-
-    // Update the properties panel if this is the active layer
-    if (obj.name === activeLayer) {
-      setLayerProperties(prev => ({
-        ...prev,
+    if (obj.name === store.activeLayer) {
+      const properties: any = {
+        name: store.activeLayer,
+        type: obj.data?.type,
         left: obj.left,
         top: obj.top,
         angle: obj.angle,
         scaleX: obj.scaleX,
         scaleY: obj.scaleY
-      }));
+      };
+
+      if (obj instanceof fabric.Textbox) {
+        properties.text = obj.text;
+        properties.fontSize = obj.fontSize;
+        properties.fontFamily = obj.fontFamily;
+        properties.fill = obj.fill;
+      } else if (obj instanceof fabric.Group) {
+        properties.fill = obj.getObjects()[0]?.fill;
+      }
+
+      store.setLayerProperties(properties);
     }
   };
 
   const handlePropertyChange = (property: string, value: any) => {
-    if (!activeLayer || !canvasRef.current) return;
+    if (!store.activeLayer || !store.sceneCanvas) return;
 
-    const canvas = canvasRef.current;
-    const obj = canvas.getObjects().find(o => o.name === activeLayer);
+    const canvas = store.sceneCanvas;
+    const obj = canvas.getActiveObject();
     if (!obj) return;
 
     switch (property) {
       case 'text':
-        if (obj instanceof fabric.Textbox) {
-          obj.set('text', value);
-        }
+        if (obj instanceof fabric.Textbox) obj.set('text', value);
         break;
       case 'fontSize':
-        if (obj instanceof fabric.Textbox) {
-          obj.set('fontSize', Number(value));
-        }
+        if (obj instanceof fabric.Textbox) obj.set('fontSize', Number(value));
         break;
       case 'fontFamily':
-        if (obj instanceof fabric.Textbox) {
-          obj.set('fontFamily', value);
-        }
+        if (obj instanceof fabric.Textbox) obj.set('fontFamily', value);
         break;
       case 'fill':
-        if (obj instanceof fabric.Textbox || obj instanceof fabric.Group) {
+        if (obj instanceof fabric.Group && obj.data?.uploaded) {
+          const onlyThese = [
+            'pant-p2_00000181791082222361633450000004750754936289298353_',
+            'pant-p2',
+            'path33',
+            'merged-path-front',
+            'merged-path-back',
+            'top-p1',
+            'top-p2'
+          ];
+          recolorGroupPaths(obj, value, onlyThese, []);
+        }
+        else if (obj instanceof fabric.Textbox || obj instanceof fabric.Group) {
+          //@ts-ignore
           obj.set('fill', value);
           if (obj instanceof fabric.Group) {
-            obj.forEachObject(child => {
-              if (child.set) {
-                child.set('fill', value);
-              }
-            });
+            obj.forEachObject(child => child.set?.('fill', value));
           }
+          canvas.requestRenderAll();
         }
         break;
       case 'left':
@@ -306,214 +481,289 @@ export const SceneEditor: React.FC<SceneEditorProps> = ({ scene, onSave, onClose
   };
 
   const handleSave = () => {
-    // Final capture of all layer states
-    const canvas = canvasRef.current;
-    if (canvas) {
-      canvas.getObjects().forEach(obj => {
-        if (obj.selectable) {
-          updateLayerProperties(obj);
+    if (store.sceneCanvas) {
+      store.sceneCanvas.getObjects().forEach(obj => {
+        if (obj.name && obj.data?.id) {
+          store.setSceneLayerPosition(sceneId, obj.data.id, {
+            x: obj.left || 0,
+            y: obj.top || 0,
+            scaleX: obj.scaleX || 1,
+            scaleY: obj.scaleY || 1,
+            angle: obj.angle || 0
+          });
         }
       });
     }
-
-    onSave(editedScene);
+    //@ts-ignore
+    onSave(store.editedScene);
     onClose();
   };
 
-  const findObjectByName = (name: string): fabric.Object | undefined =>
-    canvasRef.current?.getObjects().find(o => o.name === name);
+
 
   const handleSelectLayer = (name: string) => {
-    const canvas = canvasRef.current!;
-    const obj = findObjectByName(name);
-    if (!obj) return;
-    canvas.setActiveObject(obj);
-    canvas.requestRenderAll();
-    setActiveLayer(name);
+    if (!store.sceneCanvas) return;
+    const obj = store.sceneCanvas.getObjects().find(o => o.name === name);
+    if (obj) {
+      store.sceneCanvas.setActiveObject(obj);
+      store.sceneCanvas.requestRenderAll();
+      store.setActiveLayer(name);
+    }
   };
 
   const handleDeleteLayer = (name: string) => {
-    const canvas = canvasRef.current!;
-    const obj = findObjectByName(name);
+    if (!store.sceneCanvas || !store.editedScene) return;
+    const obj = store.sceneCanvas.getObjects().find(o => o.name === name);
     if (!obj) return;
-    // 1) Remove from canvas
-    canvas.remove(obj);
-    canvas.discardActiveObject();
-    canvas.requestRenderAll();
-    setActiveLayer(null);
 
-    // 2) Also remove from your editedScene payload (so on Save it’s gone)
-    setEditedScene(prev => {
-      const updated = { ...prev };
-      // drop any elementPositions entry
-      if (updated.elementPositions) {
-        delete updated.elementPositions[name];
-      }
-      // if it’s a text layer
-      if (name.startsWith('text-') && updated.editedText) {
-        const idx = parseInt(name.split('-')[1], 10);
-        updated.editedText = updated.editedText.filter((_, i) => i !== idx);
-      }
-      // for svgs, backgrounds, etc. you’d do likewise:
-      // updated.svgs = updated.svgs.filter((_, i) => `svg-${i}` !== name)
-      // updated.backgrounds = updated.backgrounds.filter((_, i) => `bg-${i}` !== name)
-      return updated;
-    });
+    store.sceneCanvas.remove(obj);
+    store.sceneCanvas.discardActiveObject();
+    store.sceneCanvas.requestRenderAll();
+    store.setActiveLayer(null);
+
+    //@ts-ignore
+    const updated = { ...store.editedScene };
+    if (updated.elementPositions) {
+      delete updated.elementPositions[name];
+    }
+    if (name.startsWith('text-') && updated.editedText) {
+      const idx = parseInt(name.split('-')[1], 10);
+      //@ts-ignore
+      updated.editedText = updated.editedText.filter((_, i) => i !== idx);
+    }
+    store.setEditedScene(updated);
   };
 
+
+  useEffect(() => {
+    const canvas = fabricRef.current!;
+
+    // recursive walker to dump every path & group
+    function dumpLayers(obj: fabric.Object): any {
+      const info: any = {
+        type: obj.type,
+        name: (obj as any).name,
+        fill: (obj as any).fill,
+        stroke: (obj as any).stroke,
+      };
+      if (obj instanceof fabric.Path) {
+        info.pathData = (obj as any).path;
+      }
+      if (obj instanceof fabric.Group) {
+        info.children = obj.getObjects().map(dumpLayers);
+      }
+      return info;
+    }
+
+    function handleObjectSelected(e: fabric.IEvent) {
+      const tgt = e.target;
+      // only log your SVG groups
+      if (tgt instanceof fabric.Group && tgt.data?.type === 'svg') {
+        console.log('SVG layer tree:', dumpLayers(tgt));
+      }
+    }
+
+    canvas.on('object:selected', handleObjectSelected);
+    return () => {
+      canvas.off('object:selected', handleObjectSelected);
+    };
+  }, []);
+
+
+
+  useEffect(() => {
+    const canvas = fabricRef.current!;
+    // recursive walker
+    function dumpLayers(obj: fabric.Object): any {
+      const out: any = {
+        type: obj.type,
+        name: (obj as any).name,
+        fill: (obj as any).fill,
+        stroke: (obj as any).stroke,
+      };
+      if (obj instanceof fabric.Path) {
+        out.pathData = (obj as any).path;
+      }
+      if (obj instanceof fabric.Group) {
+        out.children = obj.getObjects().map(dumpLayers);
+      }
+      return out;
+    }
+
+    function onMove(e: fabric.IEvent) {
+      const tgt = e.target;
+      if (tgt instanceof fabric.Group && tgt.data?.uploaded) {
+        console.clear();
+        console.log('--- dragging SVG, layer tree ---');
+        console.log(dumpLayers(tgt));
+      }
+    }
+
+    canvas.on('object:moving', onMove);
+    return () => { canvas.off('object:moving', onMove); };
+  }, []);
+
+
   return (
-    <>
     <div className="ed_fixed">
-    <div className="editor_wrap">
-      <div className="editor-header">
-        <h3>Scene Editor - {activeLayer || 'No layer selected'}</h3>
-        <button onClick={onClose}>×</button>
-      </div>
-    <div className="scene-editor-modal">
+      <div className="editor_wrap">
+        <div className="editor-header">
+          <button onClick={onClose}>×</button>
+        </div>
 
-      <div className="editor-container">
-        <canvas id="temp-canvas" />
+        <div className="upload-svg-container">
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept=".svg"
+            onChange={handleSvgUpload}
+            style={{ display: 'none' }}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="upload-svg-btn"
+          >
+            Upload SVG
+          </button>
+        </div>
 
-        {/* <div className="layer-properties-panel">
-          {layerProperties && (
-            <>
-              <h4>Layer Properties</h4>
-              <div className="property-grid">
-                {layerProperties.type === 'text' && (
-                  <>
-                    <div className="property-row">
-                      <label>Text Content</label>
-                      <input
-                        type="text"
-                        value={layerProperties.text || ''}
-                        onChange={(e) => handlePropertyChange('text', e.target.value)}
-                      />
-                    </div>
-                    <div className="property-row">
-                      <label>Font Size</label>
-                      <input
-                        type="number"
-                        value={layerProperties.fontSize || 24}
-                        onChange={(e) => handlePropertyChange('fontSize', e.target.value)}
-                      />
-                    </div>
-                    <div className="property-row">
-                      <label>Font Family</label>
-                      <select
-                        value={layerProperties.fontFamily || 'Arial'}
-                        onChange={(e) => handlePropertyChange('fontFamily', e.target.value)}
+        <div className="scene-editor-modal">
+          <div className="t_l_m">
+            <div className="editor-container">
+              <canvas
+                id="temp-canvas"
+                ref={canvasRef}
+                width={800}
+                height={500}
+              />
+            </div>
+
+            <div className="mod_layerr">
+              <div className="scene-layers-list">
+                <h3 className='l_label'>All Layers</h3>
+                <ul>
+                  {canvasObjects
+                    .filter(obj => obj.name !== 'background-layer')
+                    .map(obj => (
+                      <li
+                        key={obj.name}
+                        className={`flex space-x-2 ${store.activeLayer === obj.name ? 'active-layer' : ''}`}
                       >
-                        <option value="Arial">Arial</option>
-                        <option value="Verdana">Verdana</option>
-                        <option value="Helvetica">Helvetica</option>
-                      </select>
-                    </div>
-                  </>
-                )}
-
-                <div className="property-row">
-                  <label>Color</label>
-                  <input
-                    type="color"
-                    value={layerProperties.fill || '#000000'}
-                    onChange={(e) => handlePropertyChange('fill', e.target.value)}
-                  />
-                </div>
-
-                <div className="property-row">
-                  <label>Position X</label>
-                  <input
-                    type="number"
-                    value={layerProperties.left || 0}
-                    onChange={(e) => handlePropertyChange('left', e.target.value)}
-                  />
-                </div>
-
-                <div className="property-row">
-                  <label>Position Y</label>
-                  <input
-                    type="number"
-                    value={layerProperties.top || 0}
-                    onChange={(e) => handlePropertyChange('top', e.target.value)}
-                  />
-                </div>
-
-                <div className="property-row">
-                  <label>Rotation</label>
-                  <input
-                    type="number"
-                    value={layerProperties.angle || 0}
-                    onChange={(e) => handlePropertyChange('angle', e.target.value)}
-                  />
-                </div>
-
-                <div className="property-row">
-                  <label>Scale X</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={layerProperties.scaleX || 1}
-                    onChange={(e) => handlePropertyChange('scaleX', e.target.value)}
-                  />
-                </div>
-
-                <div className="property-row">
-                  <label>Scale Y</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={layerProperties.scaleY || 1}
-                    onChange={(e) => handlePropertyChange('scaleY', e.target.value)}
-                  />
-                </div>
-
-
+                        <button onClick={() => handleSelectLayer(obj.name!)}>
+                          {obj.name}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteLayer(obj.name!)}
+                          title="Delete this layer"
+                          className="delete-btn"
+                        >
+                          ×
+                        </button>
+                      </li>
+                    ))}
+                </ul>
               </div>
-            </>
-          )}
-        </div> */}
+              <div className="layer-properties-panel">
+                <h3 className='l_label'>Layer Properties</h3>
+                {store.layerProperties ? (
+                  <div className="property-grid">
+                    {store.layerProperties.type === 'text' && (
+                      <>
+                        <div className="property-row">
+                          <label>Text Content</label>
+
+
+                        </div>
+                        <div className="property-row">
+                          <label>Font Size</label>
+
+                          <p>{store.layerProperties.fontSize || 24}</p>
+                        </div>
+                        <div className="property-row">
+                          <label>Font Family</label>
+                          <select
+                            value={store.layerProperties.fontFamily || 'Arial'}
+                            onChange={(e) => handlePropertyChange('fontFamily', e.target.value)}
+                          >
+                            <option value="Arial">Arial</option>
+                            <option value="Verdana">Verdana</option>
+                            <option value="Helvetica">Helvetica</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
+
+                    <div className="property-row">
+                      <label>Color</label>
+                      <input
+                        type="color"
+                        value={store.layerProperties.fill || '#000000'}
+                        onChange={(e) => handlePropertyChange('fill', e.target.value)}
+                      />
+
+                    </div>
+
+                    <div className="layers_pos">
+                      {store.layerProperties ? (
+                        <>
+                          <div className="property-row">
+                            <label>Position X</label>
+                            <p>{Math.round(store.layerProperties.left ?? 0)}</p>
+                          </div>
+
+                          <div className="property-row">
+                            <label>Position Y</label>
+                            <p>{Math.round(store.layerProperties.top ?? 0)}</p>
+                          </div>
+
+                          <div className="property-row">
+                            <label>Rotation</label>
+                            <p>{Math.round(store.layerProperties.angle ?? 0)}</p>
+                          </div>
+
+                          <div className="property-row">
+                            <label>Scale X</label>
+                            <p>{(store.layerProperties.scaleX ? Math.round(store.layerProperties.scaleX * 100) / 100 : 1)}</p>
+                          </div>
+
+                          <div className="property-row">
+                            <label>Scale Y</label>
+                            <p>{(store.layerProperties.scaleY ? Math.round(store.layerProperties.scaleY * 100) / 100 : 1)}</p>
+                          </div>
+                        </>
+                      ) : (
+                        <div className="property-row">
+                          <p>No layer selected</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="no-layer-selected">
+
+                  </div>
+                )}
+              </div>
+
+
+
+            </div>
+
+          </div>
+
+        </div>
+
+
+
+        <div className="editor-controls">
+          <button onClick={handleSave} className="save-btn">
+            Save Changes
+          </button>
+          <button onClick={onClose} className="close-btn">
+            Close
+          </button>
+        </div>
       </div>
-
-      <div className="scene-layers-list">
-        <h4>All Layers</h4>
-        <ul>
-          {canvasRef.current
-            ?.getObjects()
-            .map(obj => (
-              <li key={obj.name} className="flex items-center space-x-2">
-                <button
-                  onClick={() => handleSelectLayer(obj.name!)}
-                 
-                >
-                  {obj.name} <small>({obj.data?.type})</small>
-                </button>
-                <button
-                  onClick={() => handleDeleteLayer(obj.name!)}
-                 
-                  title="Delete this layer"
-                >
-                  x
-                </button>
-              </li>
-            ))}
-        </ul>
-      </div>
-
-
-
-
-      
     </div>
-    <div className="editor-controls">
-        <button onClick={handleSave}>Save Changes</button>
-        <button onClick={onClose}>x</button>
-      </div>
-
-    </div>
-
-    </div>
-    </>
-
-    
   );
-};
+});

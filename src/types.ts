@@ -338,5 +338,74 @@ export interface GifElement {
 }
 
 
+interface SvgAsset {
+  tags: string[];
+  svg_url: string;
+}
+
+interface BackgroundAsset {
+  name: string;
+  background_url: string;
+}
+
+interface AnimationAsset {
+  name: string;
+}
+
+interface ScenePayload {
+  svgs?: SvgAsset[];
+  backgrounds?: BackgroundAsset[];
+  animations?: AnimationAsset[];
+  text?: string[];
+  tts_audio_url?: string[];
+}
+
+ 
+
+interface ScenePayload {
+  svgs?: SvgAsset[];
+  backgrounds?: BackgroundAsset[];
+  animations?: AnimationAsset[];
+  text?: string[];
+  tts_audio_url?: string[];
+}
+
+export interface ScenePayloadWithEdits extends ScenePayload {
+  editedBackgrounds: BackgroundAsset[];
+  editedSvgs: SvgAsset[];
+  editedText: string[];
+  elementPositions: Record<string, {
+    x: number;
+    y: number;
+    scaleX: number;
+    scaleY: number;
+    angle: number;
+  }>;
+  textProperties: Record<string, {
+    fontSize: number;
+    fontFamily: string;
+    fill: string;
+  }>;
+  elements?: Array<{
+    id: string;
+    type: 'svg' | 'text' | 'tts';
+    content?: string;
+    tags?: string[];
+  }>;
+}
+
+export interface LayerProperties {
+  name?: string;
+  type?: 'text' | 'svg' | 'background' | 'tts';
+  left?: number;
+  top?: number;
+  angle?: number;
+  scaleX?: number;
+  scaleY?: number;
+  fill?: string;
+  fontSize?: number;
+  fontFamily?: string;
+  text?: string;
+}
 
 
