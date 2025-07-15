@@ -2,7 +2,6 @@
 
 import React, { useContext, useState, useEffect } from "react";
 import { observer } from "mobx-react-lite";
-import { toJS } from "mobx";
 import { StoreContext } from "@/store";
 import { SeekPlayer } from "./timeline-related/SeekPlayer";
 import { TimeFrameView } from "./timeline-related/TimeFrameView";
@@ -126,9 +125,7 @@ export const TimeLine: React.FC = observer(() => {
     //   store.canvas.requestRenderAll();
     // }
   };
-
-
-
+  
   useEffect(() => {
     if (sceneTimings.length === 0) return;
     const ct = store.currentTimeInMs;

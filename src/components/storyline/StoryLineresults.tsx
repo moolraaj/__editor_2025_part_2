@@ -44,12 +44,14 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   const [tempScenes, setTempScenes] = React.useState<ScenePayloadWithEdits[]>([]);
   const [editingSceneIndex, setEditingSceneIndex] = React.useState<number | null>(null);
 
-  useEffect(() => {
-    console.log(`tempScenes`)
-    console.log(tempScenes)
-  }, [])
 
 
+  useEffect(()=>{
+  console.log(`tempScenes`)
+  console.log(tempScenes)
+  },[])
+
+ 
   React.useEffect(() => {
     if (showResultPopup && payloads.length > 0 && tempScenes.length === 0) {
 
@@ -89,11 +91,11 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
       console.error('Download failed:', err);
     }
   };
-
+ 
   const handleEditScene = (index: number) => {
     setEditingSceneIndex(index);
   };
-
+ 
   const handleSaveEditedScene = (edited: ScenePayloadWithEdits) => {
     setTempScenes(prev =>
       prev.map((s, i) => (i === editingSceneIndex ? {
@@ -105,9 +107,6 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
     setEditingSceneIndex(null);
   };
 
-
-  console.log(`tempScenes`)
-  console.log(tempScenes)
   const handleAddToCanvas = () => {
     tempScenes.forEach(scenePayload => {
       store.addSceneResource({

@@ -24,23 +24,7 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
   const fileInputRef = useRef<HTMLInputElement>(null);
 
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    if (file.type !== "image/svg+xml") {
-      alert("Only SVG files are allowed!");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        store.addSvgResource(e.target.result as string);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
+ 
 
   function recolorGroupPaths(
     group: fabric.Group,
@@ -50,16 +34,10 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
   ) {
     group.getObjects().forEach(obj => {
       if (obj.type !== 'path') return;
-
       const name = (obj as any).name as string | undefined;
       if (!name) return;
-
-
       if (includeNames.length && !includeNames.includes(name)) return;
-
-
       if (excludeNames.includes(name)) return;
-
       (obj as any).set('fill', newColor);
     });
     group.canvas?.requestRenderAll();
@@ -206,16 +184,33 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
     });
     sceneData.text?.forEach((text, index) => {
       const editedText = sceneData.editedText?.[index] || text;
+      const canvasWidth = canvas.width || 800;
+      const canvasHeight = canvas.height || 500;
+      const padding = 40;
+      const textWidth = canvasWidth - (padding * 2);
+      const lineHeight = 1.2;
+      const fontSize = sceneData.textProperties?.[`text-${index}-child`]?.fontSize || 24;
+      const textHeight = fontSize * lineHeight;
+      const pos = sceneData.elementPositions?.[`text-${index}-child`] || {
+        x: padding,
+        //@ts-ignore
+        y: canvasHeight - (sceneData.text.length - index) * (textHeight + 20),
+      };
       const txt = new fabric.Textbox(editedText, {
-        left: sceneData.elementPositions?.[`text-${index}-child`]?.x || 50,
-        top: sceneData.elementPositions?.[`text-${index}-child`]?.y || 50 + (index * 60),
-        width: 300,
-        fontSize: sceneData.textProperties?.[`text-${index}-child`]?.fontSize || 24,
+        left: pos.x,
+        top: pos.y,
+        width: textWidth,
+        fontSize: fontSize,
         fontFamily: sceneData.textProperties?.[`text-${index}-child`]?.fontFamily || 'Arial',
         fill: sceneData.textProperties?.[`text-${index}`]?.fill || '#000000',
         selectable: true,
         name: `text-${index}-child`,
-        data: { type: 'text', id: `text-${index}-child` }
+        data: { type: 'text', id: `text-${index}-child` },
+        textAlign: 'center',
+        originX: 'left',
+        originY: 'top',
+        lockScalingX: true,
+        lockUniScaling: true
       });
       canvas.add(txt);
       setupObjectControls(txt);
@@ -232,92 +227,7 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
       canvas.add(audioIcon);
       setupObjectControls(audioIcon);
     });
-
-    sceneData.elements?.forEach((element, index) => {
-      const pos = sceneData.elementPositions?.[element.id] || {
-        x: 20 + 30 * index,
-        y: 20 + 30 * index,
-        scaleX: 0.4,
-        scaleY: 0.4,
-        angle: 0
-      };
-
-      switch (element.type) {
-        case 'svg':
-          const loadSvg = (svgContent: string) => {
-            return new Promise<fabric.Object>((resolve, reject) => {
-              fabric.loadSVGFromString(svgContent, (objects, options) => {
-                try {
-                  const group = fabric.util.groupSVGElements(objects, options);
-
-                  // Use saved position or default to center
-                  const savedPos = sceneData.elementPositions?.[element.id] || {
-                    x: canvas.width! / 2,
-                    y: canvas.height! / 2,
-                    scaleX: 0.4,
-                    scaleY: 0.4,
-                    angle: 0
-                  };
-
-                  group.set({
-                    left: savedPos.x,
-                    top: savedPos.y,
-                    scaleX: savedPos.scaleX,
-                    scaleY: savedPos.scaleY,
-                    angle: savedPos.angle,
-                    selectable: true,
-                    name: element.id,
-                    data: {
-                      type: 'svg',
-                      id: element.id,
-                      uploaded: element.tags?.includes('uploaded')
-                    },
-                    originX: 'center',
-                    originY: 'center',
-                    // Bounding box styling
-                    borderColor: '#0099ff',
-                    cornerColor: '#0099ff',
-                    cornerSize: 10,
-                    transparentCorners: false
-                  });
-
-                  resolve(group);
-                } catch (error) {
-                  console.error('Error processing SVG:', error);
-                  reject(error);
-                }
-              });
-            });
-          };
-
-          if (element.content) {
-            loadSvg(element.content)
-              .then(group => {
-                canvas.add(group);
-                setupObjectControls(group);
-                canvas.requestRenderAll();
-              })
-              .catch(error => {
-                console.error('Failed to load SVG content:', error);
-                // Create placeholder
-                const placeholder = new fabric.Rect({
-                  left: pos.x,
-                  top: pos.y,
-                  width: 100,
-                  height: 100,
-                  fill: '#f0f0f0',
-                  stroke: '#999',
-                  selectable: true,
-                  name: element.id,
-                  data: { type: 'svg', id: element.id }
-                });
-                canvas.add(placeholder);
-                setupObjectControls(placeholder);
-              });
-          }
-          break;
-      }
-    });
+ 
 
     canvas.renderAll();
   };
@@ -511,7 +421,7 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
 
     function handleObjectSelected(e: fabric.IEvent) {
       const tgt = e.target;
-      // only log your SVG groups
+      
       if (tgt instanceof fabric.Group && tgt.data?.type === 'svg') {
         console.log('SVG layer tree:', dumpLayers(tgt));
       }
@@ -527,7 +437,7 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
 
   useEffect(() => {
     const canvas = fabricRef.current!;
-  
+
     function dumpLayers(obj: fabric.Object): any {
       const out: any = {
         type: obj.type,
@@ -552,47 +462,30 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
         console.log(dumpLayers(tgt));
       }
     }
-
     canvas.on('object:moving', onMove);
     return () => { canvas.off('object:moving', onMove); };
   }, []);
 
-
-
-
   return (
-
     <>
-
       <div className="ed_fixed">
         <div className="editor_wrap">
           <div className="editor-header">
             <button onClick={onClose}>×</button>
           </div>
 
-          <div className="upload-svg-container">
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept=".svg"
-              onChange={handleFileChange}
-              style={{ display: 'none' }}
-              id={`image-${sceneIndex}`}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="upload-svg-btn"
-            >
-              Upload SVG
-            </button>
+          
+          <div className="mapping_svgs">
+           
           </div>
+          
 
 
 
           <div className="scene-editor-modal">
 
             <div className="upload_svg">
-            
+
 
             </div>
 
@@ -606,7 +499,6 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
                   height={500}
                 />
               </div>
-
               <div className="mod_layerr">
                 <div className="scene-layers-list">
                   <h3 className='l_label'>All Layers</h3>
@@ -640,12 +532,9 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
                         <>
                           <div className="property-row">
                             <label>Text Content</label>
-
-
                           </div>
                           <div className="property-row">
                             <label>Font Size</label>
-
                             <p>{store.layerProperties.fontSize || 24}</p>
                           </div>
                           <div className="property-row">
@@ -661,7 +550,6 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
                           </div>
                         </>
                       )}
-
                       <div className="property-row">
                         <label>Color</label>
                         <input
@@ -669,43 +557,9 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
                           value={store.layerProperties.fill || '#000000'}
                           onChange={(e) => handlePropertyChange('fill', e.target.value)}
                         />
-
                       </div>
 
-                      <div className="layers_pos">
-                        {store.layerProperties ? (
-                          <>
-                            <div className="property-row">
-                              <label>Position X</label>
-                              <p>{Math.round(store.layerProperties.left ?? 0)}</p>
-                            </div>
-
-                            <div className="property-row">
-                              <label>Position Y</label>
-                              <p>{Math.round(store.layerProperties.top ?? 0)}</p>
-                            </div>
-
-                            <div className="property-row">
-                              <label>Rotation</label>
-                              <p>{Math.round(store.layerProperties.angle ?? 0)}</p>
-                            </div>
-
-                            <div className="property-row">
-                              <label>Scale X</label>
-                              <p>{(store.layerProperties.scaleX ? Math.round(store.layerProperties.scaleX * 100) / 100 : 1)}</p>
-                            </div>
-
-                            <div className="property-row">
-                              <label>Scale Y</label>
-                              <p>{(store.layerProperties.scaleY ? Math.round(store.layerProperties.scaleY * 100) / 100 : 1)}</p>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="property-row">
-                            <p>No layer selected</p>
-                          </div>
-                        )}
-                      </div>
+                    
                     </div>
                   ) : (
                     <div className="no-layer-selected">
