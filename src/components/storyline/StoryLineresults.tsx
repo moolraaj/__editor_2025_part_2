@@ -46,12 +46,12 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
 
 
 
-  useEffect(()=>{
-  console.log(`tempScenes`)
-  console.log(tempScenes)
-  },[])
+  useEffect(() => {
+    console.log(`tempScenes`)
+    console.log(tempScenes)
+  }, [])
 
- 
+
   React.useEffect(() => {
     if (showResultPopup && payloads.length > 0 && tempScenes.length === 0) {
 
@@ -91,11 +91,11 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
       console.error('Download failed:', err);
     }
   };
- 
+
   const handleEditScene = (index: number) => {
     setEditingSceneIndex(index);
   };
- 
+
   const handleSaveEditedScene = (edited: ScenePayloadWithEdits) => {
     setTempScenes(prev =>
       prev.map((s, i) => (i === editingSceneIndex ? {
@@ -109,19 +109,25 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
 
   const handleAddToCanvas = () => {
     tempScenes.forEach(scenePayload => {
+      const elements = (scenePayload.elements || []).map(element => ({
+        ...element,
+        // Ensure the structure matches what Store expects
+        properties: {
+          ...(element.properties || {}),
+          // For uploaded SVGs, move content to src if needed
+          src: element.type === 'svg' && element.content
+            ? `data:image/svg+xml;base64,${btoa(element.content)}`
+            : element.properties?.src
+        }
+      }));
+
       store.addSceneResource({
-        //@ts-ignore
-        backgrounds: scenePayload.editedBackgrounds!,
-        //@ts-ignore
-        gifs: scenePayload.editedSvgs!,
-        //@ts-ignore
+        backgrounds: scenePayload.editedBackgrounds || [],
+        gifs: scenePayload.editedSvgs || [],
         animations: scenePayload.animations || [],
-        //@ts-ignore
-        elements: [],
-        //@ts-ignore
-        text: scenePayload.editedText!,
-        //@ts-ignore
-        tts_audio_url: scenePayload.tts_audio_url!,
+        elements: elements,
+        text: scenePayload.editedText || [],
+        tts_audio_url: scenePayload.tts_audio_url || [],
       });
     });
     store.refreshElements();
