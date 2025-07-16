@@ -1196,8 +1196,6 @@ export class Store {
       adjustLayerPositions(p.text);
       adjustLayerPositions(p.tts);
     }
-
-    // KEEP ALL EXISTING CODE BELOW EXACTLY AS IS
     const startDelta = newStart - oldStart;
     if (startDelta !== 0) {
       const shiftNested = <T extends { timeFrame: TimeFrame }>(arr?: T[]) => {
@@ -1215,7 +1213,6 @@ export class Store {
       shiftNested(scene.elements);
       shiftNested(scene.text);
       shiftNested(scene.tts);
-
       if (sceneElem) {
         const p = sceneElem.properties as any;
         shiftNested(p.backgrounds);
@@ -1226,7 +1223,6 @@ export class Store {
         shiftNested(p.tts);
       }
     }
-
     const durationDelta = newDuration - oldDuration;
     if (durationDelta !== 0) {
       for (let i = sceneIndex + 1; i < this.scenes.length; i++) {
@@ -1244,7 +1240,6 @@ export class Store {
             end: ee.timeFrame.end + durationDelta,
           };
         }
-
         const shiftNested = <T extends { timeFrame: TimeFrame }>(arr?: T[]) => {
           arr?.forEach(layer => {
             layer.timeFrame = {
@@ -1259,7 +1254,6 @@ export class Store {
         shiftNested(s.elements);
         shiftNested(s.text);
         shiftNested(s.tts);
-
         if (ee) {
           const p = ee.properties as any;
           shiftNested(p.backgrounds);
@@ -1271,12 +1265,10 @@ export class Store {
         }
       }
     }
-
     this.maxTime = this.getMaxTime();
     this.scenesTotalTime = this.getScenesTotalTime();
     this.refreshAnimations();
     this.setActiveScene(sceneIndex)
-
   }
 
   addEditorElement(editorElement: EditorElement) {
@@ -1300,8 +1292,6 @@ export class Store {
     }
     console.groupEnd();
   }
-
-
 
   removeEditorElement(id: string) {
     this.setEditorElements(
@@ -1342,11 +1332,7 @@ export class Store {
       console.warn('No SVG selected.');
       return;
     }
-
-    // Clear previous animation instances when reassigning.
     this.clearCurrentAnimations();
-
-    // Set new animation type.
     this.selectedElement.properties.animationType = animationType;
     this.updateEditorElement(this.selectedElement);
 
@@ -1356,18 +1342,14 @@ export class Store {
   }
   applyWalkingAnimation(svgElement: fabric.Group) {
     if (!svgElement) return;
-
-    // Cancel any previous animations.
     this.clearCurrentAnimations();
 
-    // Flatten the structure.
     const allObjects = this.getAllObjectsRecursively(svgElement);
     console.log(
       'Available SVG Parts:',
       allObjects.map((obj) => (obj as any).dataName || obj.name)
     );
 
-    // Animate each part based on walkingAnimations.
     Object.entries(walkingAnimations).forEach(([partId, animationData]) => {
       const targetElement = allObjects.find(
         (obj) => ((obj as any).dataName || obj.name) === partId
@@ -1391,7 +1373,6 @@ export class Store {
       this.currentAnimations.push(animInstance);
     });
 
-    // Animate the whole group moving forward.
     const groupAnim = anime({
       targets: svgElement,
       left: [
@@ -1481,19 +1462,13 @@ export class Store {
   }
 
 
-
-
   applyHandstandAnimation(svgElement: fabric.Group) {
     if (!svgElement) return;
-
-    // Cancel any previous animations.
     this.clearCurrentAnimations();
 
     console.log(
       `🤸 Handstand animation started for SVG ID: ${this.selectedElement?.id}`
     );
-
-    // Flatten the structure (using the same approach as in walking animation).
     const allObjects = this.getAllObjectsRecursively(svgElement);
     console.log(
       '🔍 Available SVG Parts:',
@@ -1509,10 +1484,7 @@ export class Store {
         return;
       }
 
-      // Reset the angle to ensure a clean start.
       targetElement.set('angle', 0);
-
-      // For the hand (or any other part that needs repositioning), adjust its origin once.
       if (partId === 'hand') {
         targetElement.setPositionByOrigin(new fabric.Point(-1, -180), 'center', 'top');
       }
@@ -1630,7 +1602,7 @@ export class Store {
       toggleVisibility(scene.fabricObjects.gifs, scene.gifs, true, is0to3000);
       toggleVisibility(scene.fabricObjects.backgrounds, scene.backgrounds);
       toggleVisibility(scene.fabricObjects.texts, scene.text);
-      toggleVisibility(scene.fabricObjects.elements, scene.elements);
+      toggleVisibility(scene.fabricObjects.elements, scene.elements, true, is0to3000);
       toggleVisibility(scene.fabricObjects.tts, scene.tts);
     });
     this.editorElements.forEach((el) => {
@@ -1641,10 +1613,8 @@ export class Store {
         el.fabricObject.visible = isInside;
       }
     });
-    this.updateAudioElements()
-    this.updateVideoElements()
+
     this.updateSvgElements()
-    this.updateAudioElements();
     this.canvas?.requestRenderAll();
   }
 
@@ -2778,8 +2748,6 @@ export class Store {
               obj.fire('selected');
             }
           };
-
-          // Background image handling
           if (sceneData.bgImage) {
             const { start: t0, end: t1 } = sceneData.timeFrame;
             if (now >= t0 && now <= t1) {
@@ -2812,8 +2780,6 @@ export class Store {
               }
             }
           }
-
-
           sceneData.backgrounds?.forEach((bg, index) => {
             const { start, end } = bg.timeFrame;
             if (now >= start && now <= end && bg.background_url) {
@@ -2854,8 +2820,6 @@ export class Store {
               }
             }
           });
-
-
           sceneData.text?.forEach((textItem, index) => {
             const { start, end } = textItem.timeFrame;
             if (now >= start && now <= end) {
@@ -2915,8 +2879,6 @@ export class Store {
               }
             }
           });
-
-
           sceneData.gifs?.forEach((gif, index) => {
             const { start, end } = gif.timeFrame;
             if (now < start || now > end) return;
@@ -3053,6 +3015,7 @@ export class Store {
             const existing = sceneData.fabricObjects.elements.find(
               el => el?.data?.elementId === childElement.id
             );
+
             if (existing) {
               existing.set({ visible: true, selectable: true });
               addObjectToScene(existing, {
@@ -3074,72 +3037,275 @@ export class Store {
             };
             switch (childElement.type) {
               case 'svg': {
-                if (!childElement.fabricObject) {
-                  fabric.loadSVGFromURL(
-                    childElement.properties.src,
-                    (objects, options) => {
-                      const group = fabric.util.groupSVGElements(objects, {
-                        ...options,
-                        name: childElement.id,
-                        data: {
-                          elementId: childElement.id,
-                          isSvg: true
-                        },
-                        left: pos.x,
-                        top: pos.y,
-                        scaleX: pos.scaleX,
-                        scaleY: pos.scaleY,
-                        angle: pos.rotation,
-                        selectable: true,
-                        evented: true,
-                        visible: true,
-                        hoverCursor: 'move',
-                        hasControls: true,
-                        hasBorders: true,
-                        lockMovementX: false,
-                        lockMovementY: false,
-                        perPixelTargetFind: true
-                      });
-                      childElement.fabricObject = group;
-                      //@ts-ignore
-                      sceneData.fabricObjects.elements.push({
-                        ...childElement,
-                        //@ts-ignore
-                        fabricInstance: group
-                      });
-                      group.on('selected', () => {
-                        this.selectedElement = childElement;
-                      });
-                      canvas.add(group);
-                      canvas.requestRenderAll();
-                      group.on('modified', () => {
-                        const newPlacement = {
-                          ...childElement.placement,
-                          x: group.left,
-                          y: group.top,
-                          rotation: group.angle,
-                          scaleX: group.scaleX,
-                          scaleY: group.scaleY
-                        };
-                        this.updateEditorElement({
-                          ...childElement,
-                          //@ts-ignore
-                          placement: newPlacement
-                        });
-                      });
-                    }
-                  );
-                } else {
-                  childElement.fabricObject.set({
+
+                const savedPos = initialLayerPositions[childElement.id] || {};
+                const basePos = {
+                  x: savedPos.x || childElement.placement?.x || x + width * 0.35,
+                  y: savedPos.y || childElement.placement?.y || y + height * 0.35,
+                  scaleX: savedPos.scaleX || childElement.placement?.scaleX || 0.3,
+                  scaleY: savedPos.scaleY || childElement.placement?.scaleY || 0.3,
+                  angle: savedPos.angle || childElement.placement?.rotation || 0,
+                  originX: savedPos.originX || 'center',
+                  originY: savedPos.originY || 'center',
+                  width: savedPos.width || childElement.placement?.width,
+                  height: savedPos.height || childElement.placement?.height
+                };
+
+
+                const existingObj = sceneData.fabricObjects?.elements?.find(
+                  (el: any) => el?.data?.elementId === childElement.id
+                );
+
+                if (existingObj) {
+
+                  existingObj.set({
+                    left: basePos.x,
+                    top: basePos.y,
+                    scaleX: basePos.scaleX,
+                    scaleY: basePos.scaleY,
+                    angle: basePos.angle,
+                    originX: basePos.originX,
+                    originY: basePos.originY,
                     visible: true,
                     selectable: true
                   });
-                  canvas.add(childElement.fabricObject);
-                  canvas.bringToFront(childElement.fabricObject);
-                  canvas.requestRenderAll();
+
+
+                  if (childElement.properties.parts && existingObj instanceof fabric.Group) {
+                    existingObj.getObjects().forEach((obj: fabric.Object) => {
+                      if (obj instanceof fabric.Path) {
+                        const part = childElement.properties.parts.find((p: any) => p.name === obj.name);
+                        if (part) {
+                          obj.set({
+                            fill: part.fill,
+                            stroke: part.stroke,
+                            strokeWidth: part.strokeWidth || 1
+                          });
+                        }
+                      }
+                    });
+                  }
+
+                  existingObj.setCoords();
+                  addObjectToScene(existingObj, {
+                    zIndex: 3,
+                    elementId: childElement.id,
+                    source: childElement,
+                    timeFrame: childElement.timeFrame
+                  });
+                }
+                else if (childElement.properties.parts) {
+
+                  const recreatedPaths = childElement.properties.parts.map((part: any) =>
+                    new fabric.Path(part.path, {
+                      name: part.name,
+                      fill: part.fill,
+                      stroke: part.stroke,
+                      strokeWidth: part.strokeWidth || 1
+                    })
+                  );
+
+                  const group = new fabric.Group(recreatedPaths, {
+                    name: childElement.id,
+                    left: basePos.x,
+                    top: basePos.y,
+                    scaleX: basePos.scaleX,
+                    scaleY: basePos.scaleY,
+                    angle: basePos.angle,
+                    originX: basePos.originX,
+                    originY: basePos.originY,
+                    data: {
+                      elementId: childElement.id,
+                      isSvg: true,
+                      zIndex: 3,
+                      source: childElement,
+                      timeFrame: childElement.timeFrame,
+                      parts: childElement.properties.parts
+                    },
+                    hasControls: true,
+                    hasBorders: true,
+                    selectable: true,
+                    evented: true,
+                    visible: true,
+                    padding: 10,
+                    borderColor: '#0099ff',
+                    cornerColor: '#0099ff',
+                    cornerSize: 8,
+                    transparentCorners: false
+                  });
+
+
+                  if (basePos.width && basePos.height) {
+                    const bounds = group.getBoundingRect();
+                    const scaleX = basePos.width / bounds.width;
+                    const scaleY = basePos.height / bounds.height;
+                    group.scaleX = scaleX;
+                    group.scaleY = scaleY;
+                  }
+
+                  group.setCoords();
+
+
+                  childElement.fabricObject = group;
+                  sceneData.fabricObjects.elements.push(group);
+
+                  group.on('modified', () => {
+                    if (!this.sceneModifiedStates) {
+                      this.sceneModifiedStates = new Set();
+                    }
+                    this.sceneModifiedStates.add(element.properties.sceneIndex);
+
+
+                    this.updateEditorElement({
+                      ...childElement,
+                      placement: {
+                        ...childElement.placement,
+                        x: group.left,
+                        y: group.top,
+                        rotation: group.angle,
+                        width: (group.width || 0) * group.scaleX,
+                        height: (group.height || 0) * group.scaleY,
+                        scaleX: group.scaleX,
+                        scaleY: group.scaleY
+                      }
+                    });
+
+
+                    if (group.data.parts) {
+                      group.getObjects().forEach((obj: fabric.Object) => {
+                        if (obj instanceof fabric.Path) {
+                          const part = group.data.parts.find((p: any) => p.name === obj.name);
+                          if (part) {
+                            part.fill = obj.fill;
+                            part.stroke = obj.stroke;
+                            part.strokeWidth = obj.strokeWidth;
+                          }
+                        }
+                      });
+                    }
+                  });
+
+                  addObjectToScene(group, {
+                    zIndex: 3,
+                    elementId: childElement.id,
+                    source: childElement,
+                    timeFrame: childElement.timeFrame
+                  });
+                }
+                else {
+
+                  fabric.loadSVGFromURL(
+                    childElement.properties.src,
+                    (objects, options) => {
+                      if (!objects.length) return;
+
+
+                      const origW = options.width || 1;
+                      const origH = options.height || 1;
+                      const targetW = basePos.width || origW * basePos.scaleX;
+                      const targetH = basePos.height || origH * basePos.scaleY;
+                      const scaleX = targetW / origW;
+                      const scaleY = targetH / origH;
+
+
+                      const group = new fabric.Group(objects, {
+                        name: childElement.id,
+                        left: basePos.x,
+                        top: basePos.y,
+                        scaleX: scaleX,
+                        scaleY: scaleY,
+                        angle: basePos.angle,
+                        originX: basePos.originX,
+                        originY: basePos.originY,
+                        data: {
+                          elementId: childElement.id,
+                          isSvg: true,
+                          zIndex: 3,
+                          source: childElement,
+                          timeFrame: childElement.timeFrame,
+                          originalWidth: origW,
+                          originalHeight: origH
+                        },
+                        hasControls: true,
+                        hasBorders: true,
+                        selectable: true,
+                        evented: true,
+                        visible: true
+                      });
+
+
+                      const parts = objects.map((obj, i) => {
+                        if (obj instanceof fabric.Path) {
+                          return {
+                            type: 'path',
+                            name: obj.name || `path-${i}`,
+                            fill: obj.fill,
+                            stroke: obj.stroke,
+                            strokeWidth: obj.strokeWidth || 1,
+                            path: (obj as any).path
+                          };
+                        }
+                        return null;
+                      }).filter(Boolean);
+
+                      group.data.parts = parts;
+                      group.setCoords();
+
+
+                      childElement.fabricObject = group;
+                      sceneData.fabricObjects.elements.push(group);
+
+                      group.on('modified', () => {
+                        if (!this.sceneModifiedStates) {
+                          this.sceneModifiedStates = new Set();
+                        }
+                        this.sceneModifiedStates.add(element.properties.sceneIndex);
+
+                        this.updateEditorElement({
+                          ...childElement,
+                          placement: {
+                            ...childElement.placement,
+                            x: group.left,
+                            y: group.top,
+                            rotation: group.angle,
+                            width: (group.width || 0) * group.scaleX,
+                            height: (group.height || 0) * group.scaleY,
+                            scaleX: group.scaleX,
+                            scaleY: group.scaleY
+                          },
+                          properties: {
+                            ...childElement.properties,
+                            parts: group.getObjects().map(obj => {
+                              if (obj instanceof fabric.Path) {
+                                return {
+                                  type: 'path',
+                                  name: obj.name,
+                                  fill: obj.fill,
+                                  stroke: obj.stroke,
+                                  strokeWidth: obj.strokeWidth,
+                                  path: (obj as any).path
+                                };
+                              }
+                              return null;
+                            }).filter(Boolean)
+                          }
+                        });
+                      });
+
+                      addObjectToScene(group, {
+                        zIndex: 3,
+                        elementId: childElement.id,
+                        source: childElement,
+                        timeFrame: childElement.timeFrame
+                      });
+                    },
+                    undefined,
+                    { crossOrigin: 'anonymous' }
+                  );
                 }
                 break;
               }
+
 
               case 'text': {
                 const obj = new fabric.Textbox(childElement.properties.text || 'Text', {

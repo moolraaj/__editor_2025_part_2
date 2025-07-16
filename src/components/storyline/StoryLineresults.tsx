@@ -51,6 +51,9 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
     console.log(tempScenes)
   }, [])
 
+  console.log(`store.editedScene`)
+  console.log(store.editedScene)
+
 
   React.useEffect(() => {
     if (showResultPopup && payloads.length > 0 && tempScenes.length === 0) {
@@ -111,10 +114,10 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
     tempScenes.forEach(scenePayload => {
       const elements = (scenePayload.elements || []).map(element => ({
         ...element,
-        // Ensure the structure matches what Store expects
+     
         properties: {
           ...(element.properties || {}),
-          // For uploaded SVGs, move content to src if needed
+
           src: element.type === 'svg' && element.content
             ? `data:image/svg+xml;base64,${btoa(element.content)}`
             : element.properties?.src
