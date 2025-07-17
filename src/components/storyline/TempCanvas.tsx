@@ -17,96 +17,157 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
   const sceneId = `scene-${sceneIndex}`;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricRef = useRef<fabric.Canvas | null>(null);
-
-
-
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-
-  const handleSvgUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  async function handleSvgUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !store.sceneCanvas || !store.editedScene) return;
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const svgContent = ev.target?.result as string;
-      if (!svgContent) return;
-
-      const elementId = `svg-${sceneIndex}-child-${Date.now()}`;
-
-
-      //@ts-ignore
-      const canvasCenterX = store.sceneCanvas.width! / 2;
-      //@ts-ignore
-      const canvasCenterY = store.sceneCanvas.height! / 2;
-
-      // Update store with centered position
-      store.setEditedScene({
-        //@ts-ignore
-        ...store.editedScene!,
-        elements: [
-          //@ts-ignore
-          ...(store.editedScene!.elements || []),
-          { id: elementId, type: 'svg', content: svgContent, tags: ['uploaded'] }
-        ],
-        elementPositions: {
-          //@ts-ignore
-          ...store.editedScene!.elementPositions,
-          [elementId]: {
-            x: canvasCenterX,
-            y: canvasCenterY,
-            scaleX: 0.4,
-            scaleY: 0.4,
-            angle: 0
+    try {
+      const reader = new FileReader();
+      reader.onload = async (ev) => {
+        try {
+          const svgContent = ev.target?.result as string;
+          if (!svgContent) return;
+          const elementId = `svg-${sceneIndex}`;
+          const parser = new DOMParser();
+          const serializer = new XMLSerializer();
+          const svgDoc = parser.parseFromString(svgContent, 'image/svg+xml');
+          const svgRoot = svgDoc.documentElement;
+          if (!svgRoot.hasAttribute('xmlns')) {
+            svgRoot.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
           }
+          const objects: fabric.Object[] = await new Promise(resolve =>
+            fabric.loadSVGFromString(
+              serializer.serializeToString(svgRoot),
+              (objs, options) => {
+                objs.forEach((obj, i) => {
+                  obj.set({
+                    left: obj.left || 0,
+                    top: obj.top || 0,
+                    name: (obj as any).id || `path-${i}`,
+                    data: { isSvgPath: true }
+                  });
+                });
+                resolve(objs);
+              }
+            )
+          );
+          if (!objects?.length) {
+            console.error('Failed to load SVG objects');
+            return;
+          }
+          const canvas = store.sceneCanvas;
+          const centerX = canvas.width! / 2;
+          const centerY = canvas.height! / 2;
+          const scaleFactor = 0.4;
+          const parts = objects.map(obj => {
+            if (obj instanceof fabric.Path) {
+              return {
+                type: 'path',
+                name: obj.name,
+                fill: obj.fill,
+                stroke: obj.stroke,
+                path: (obj as any).path
+              };
+            }
+            return null;
+          }).filter(Boolean);
+          const styledGroup = new fabric.Group(objects, {
+            left: centerX,
+            top: centerY,
+            scaleX: scaleFactor,
+            scaleY: scaleFactor,
+            name: elementId,
+            data: {
+              type: 'svg',
+              id: elementId,
+              uploaded: true,
+              originalSvg: svgContent,
+              parts
+            },
+            originX: 'center',
+            originY: 'center',
+            padding: 20,
+            borderColor: '#0099ff',
+            cornerColor: '#0099ff',
+            cornerSize: 10,
+            transparentCorners: false,
+            hasControls: true,
+            objectCaching: false,
+          });
+
+          canvas.add(styledGroup);
+          setupObjectControls(styledGroup);
+
+          store.setEditedScene({
+            ...store.editedScene,
+            elements: [
+              ...(store.editedScene.elements || []),
+              {
+                id: elementId,
+                type: 'svg',
+                content: svgContent,
+                tags: ['uploaded'],
+                properties: {
+                  src: URL.createObjectURL(file),
+                  parts
+                }
+              }
+            ],
+            elementPositions: {
+              ...store.editedScene.elementPositions,
+              [elementId]: {
+                x: centerX,
+                y: centerY,
+                scaleX: scaleFactor,
+                scaleY: scaleFactor,
+                angle: 0
+              }
+            }
+          });
+          canvas.renderAll();
+        } catch (error) {
+          console.error('Error processing SVG:', error);
         }
-      });
+      };
 
-
-      fabric.loadSVGFromString(svgContent, (objects, options) => {
-        objects.forEach((obj, i) => {
-          (obj as any).name = (obj as any).id || `path-${i}`;
-        });
-        const group = fabric.util.groupSVGElements(objects, options);
-        group.set({
-          left: canvasCenterX,
-          top: canvasCenterY,
-          originX: 'center',
-          originY: 'center',
-          scaleX: 0.4,
-          scaleY: 0.4,
-          selectable: true,
-          name: elementId,
-          data: { type: 'svg', id: elementId, uploaded: true }
-        });
-        store.sceneCanvas!.add(group);
-        setupObjectControls(group);
-        store.sceneCanvas!.renderAll();
-      });
-    };
-    reader.readAsText(file);
-    fileInputRef.current!.value = '';
-  };
+      reader.readAsText(file);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error('Error handling file upload:', error);
+    }
+  }
 
   function recolorGroupPaths(
     group: fabric.Group,
     newColor: string,
-    includeNames: string[] = [],
-    excludeNames: string[] = []
+    includePatterns: string[] = [],
+    excludePatterns: string[] = []
   ) {
     group.getObjects().forEach(obj => {
       if (obj.type !== 'path') return;
-
       const name = (obj as any).name as string | undefined;
       if (!name) return;
+      if (excludePatterns.some(pattern => name.includes(pattern))) return;
+      if (includePatterns.length === 0 ||
+        includePatterns.some(pattern => name.includes(pattern))) {
+        obj.set('fill', newColor);
 
-
-      if (includeNames.length && !includeNames.includes(name)) return;
-
-
-      if (excludeNames.includes(name)) return;
-
-      (obj as any).set('fill', newColor);
+        if (store.editedScene && group.name) {
+          const element = store.editedScene.elements?.find(el => el.id === group.name);
+          if (element && element.properties?.parts) {
+            const parts = element.properties.parts as Array<{
+              name?: string;
+              fill?: string;
+            }>;
+            const part = parts.find(p => p.name === name);
+            if (part) {
+              part.fill = newColor;
+            }
+          }
+        }
+      }
     });
     group.canvas?.requestRenderAll();
   }
@@ -206,15 +267,17 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
     //@ts-ignore
     sceneData.svgs.forEach((layer, index) => {
       const url = layer.svg_url;
-      const id = `svg-${index}`;
+      const id = `svg-${index}-child`;
+      const gap = 40;
+      const startX = 50;
+      const startY = 100;
       const pos = sceneData.elementPositions?.[id] || {
-        x: 20 + 30 * index,
-        y: 20 + 30 * index,
+        x: startX + (index * (200 + gap)),
+        y: startY,
         scaleX: 0.4,
         scaleY: 0.4,
         angle: 0
       };
-
       if (/\.svg(\?.*)?$/i.test(url)) {
         fabric.loadSVGFromURL(url, (objects, options) => {
           const group = fabric.util.groupSVGElements(objects, options);
@@ -226,10 +289,21 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
             angle: pos.angle,
             selectable: true,
             name: id,
-            data: { type: 'svg', id }
+            data: { type: 'svg', id },
+            originX: 'left',
+            originY: 'top'
           });
           canvas.add(group);
           setupObjectControls(group);
+
+          // Optional: Adjust position based on actual width after scaling
+          group.on('loaded', () => {
+            group.set({
+              left: startX + (index * (group.getScaledWidth() + gap))
+            });
+            canvas.renderAll();
+          });
+
           canvas.renderAll();
         });
       } else {
@@ -242,7 +316,9 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
             angle: pos.angle,
             selectable: true,
             name: id,
-            data: { type: 'svg', id }
+            data: { type: 'svg', id },
+            originX: 'left',
+            originY: 'top'
           });
           canvas.add(img);
           setupObjectControls(img);
@@ -253,121 +329,103 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
     sceneData.text?.forEach((text, index) => {
       const editedText = sceneData.editedText?.[index] || text;
       const txt = new fabric.Textbox(editedText, {
-        left: sceneData.elementPositions?.[`text-${index}`]?.x || 50,
-        top: sceneData.elementPositions?.[`text-${index}`]?.y || 50 + (index * 60),
+        left: sceneData.elementPositions?.[`text-${index}-child`]?.x || 50,
+        top: sceneData.elementPositions?.[`text-${index}-child`]?.y || 50 + (index * 60),
         width: 300,
-        fontSize: sceneData.textProperties?.[`text-${index}`]?.fontSize || 24,
-        fontFamily: sceneData.textProperties?.[`text-${index}`]?.fontFamily || 'Arial',
-        fill: sceneData.textProperties?.[`text-${index}`]?.fill || '#000000',
+        fontSize: sceneData.textProperties?.[`text-${index}-child`]?.fontSize || 24,
+        fontFamily: sceneData.textProperties?.[`text-${index}-child`]?.fontFamily || 'Arial',
+        fill: sceneData.textProperties?.[`text-${index}-child`]?.fill || '#000000',
         selectable: true,
-        name: `text-${index}`,
-        data: { type: 'text', id: `text-${index}` }
+        name: `text-${index}-child`,
+        data: { type: 'text', id: `text-${index}-child` }
       });
       canvas.add(txt);
       setupObjectControls(txt);
     });
     sceneData.tts_audio_url?.forEach((audioUrl, index) => {
       const audioIcon = new fabric.Text('🔊', {
-        left: sceneData.elementPositions?.[`tts-${index}`]?.x || 700,
-        top: sceneData.elementPositions?.[`tts-${index}`]?.y || 20 + (index * 30),
+        left: sceneData.elementPositions?.[`tts-${index}-child`]?.x || 700,
+        top: sceneData.elementPositions?.[`tts-${index}-child`]?.y || 20 + (index * 30),
         fontSize: 24,
         selectable: true,
-        name: `tts-${index}`,
-        data: { type: 'tts', id: `tts-${index}` }
+        name: `tts-${index}-child`,
+        data: { type: 'tts', id: `tts-${index}-child` }
       });
       canvas.add(audioIcon);
       setupObjectControls(audioIcon);
     });
 
     sceneData.elements?.forEach((element, index) => {
-      const pos = sceneData.elementPositions?.[element.id] || {
+      const savedPos = sceneData.elementPositions?.[element.id];
+      const defaultPos = {
         x: 20 + 30 * index,
         y: 20 + 30 * index,
         scaleX: 0.4,
         scaleY: 0.4,
         angle: 0
       };
+      const pos = savedPos || defaultPos;
 
       switch (element.type) {
-        case 'svg':
-          const loadSvg = (svgContent: string) => {
-            return new Promise<fabric.Object>((resolve, reject) => {
-              fabric.loadSVGFromString(svgContent, (objects, options) => {
-                try {
-                  const group = fabric.util.groupSVGElements(objects, options);
+        case 'svg': {
+          const parts = element.properties.parts as Array<{
+            path: any[];
+            name?: string;
+            fill?: string;
+            stroke?: string;
+          }>;
+          const recreated = parts.map(p =>
+            new fabric.Path(p.path, {
+              name: p.name,
+              fill: p.fill,
+              stroke: p.stroke,
+              selectable: true,
+            })
+          );
 
-                  // Use saved position or default to center
-                  const savedPos = sceneData.elementPositions?.[element.id] || {
-                    x: canvas.width! / 2,
-                    y: canvas.height! / 2,
-                    scaleX: 0.4,
-                    scaleY: 0.4,
-                    angle: 0
-                  };
+          const group = new fabric.Group(recreated, {
+            name: element.id,
+            originX: 'left',
+            originY: 'top',
+            left: pos.x,
+            top: pos.y,
+            scaleX: pos.scaleX,
+            scaleY: pos.scaleY,
+            angle: pos.angle,
+            data: { type: 'svg', id: element.id, uploaded: true },
+            padding: 20,
+            borderColor: '#0099ff',
+            cornerColor: '#0099ff',
+            cornerSize: 10,
+            transparentCorners: false,
+            hasControls: true,
+            objectCaching: false,
+          });
+          group.set({
+            originX: 'center',
+            originY: 'center'
+          });
 
-                  group.set({
-                    left: savedPos.x,
-                    top: savedPos.y,
-                    scaleX: savedPos.scaleX,
-                    scaleY: savedPos.scaleY,
-                    angle: savedPos.angle,
-                    selectable: true,
-                    name: element.id,
-                    data: {
-                      type: 'svg',
-                      id: element.id,
-                      uploaded: element.tags?.includes('uploaded')
-                    },
-                    originX: 'center',
-                    originY: 'center',
-                    // Bounding box styling
-                    borderColor: '#0099ff',
-                    cornerColor: '#0099ff',
-                    cornerSize: 10,
-                    transparentCorners: false
-                  });
+          canvas.add(group);
+          setupObjectControls(group);
 
-                  resolve(group);
-                } catch (error) {
-                  console.error('Error processing SVG:', error);
-                  reject(error);
-                }
-              });
+          group.on('modified', () => {
+            const boundingRect = group.getBoundingRect();
+            store.updateSceneElementPosition(element.id, {
+              x: boundingRect.left + boundingRect.width / 2,
+              y: boundingRect.top + boundingRect.height / 2,
+              scaleX: group.scaleX,
+              scaleY: group.scaleY,
+              angle: group.angle,
             });
-          };
+          });
 
-          if (element.content) {
-            loadSvg(element.content)
-              .then(group => {
-                canvas.add(group);
-                setupObjectControls(group);
-                canvas.requestRenderAll();
-              })
-              .catch(error => {
-                console.error('Failed to load SVG content:', error);
-                // Create placeholder
-                const placeholder = new fabric.Rect({
-                  left: pos.x,
-                  top: pos.y,
-                  width: 100,
-                  height: 100,
-                  fill: '#f0f0f0',
-                  stroke: '#999',
-                  selectable: true,
-                  name: element.id,
-                  data: { type: 'svg', id: element.id }
-                });
-                canvas.add(placeholder);
-                setupObjectControls(placeholder);
-              });
-          }
           break;
+        }
       }
     });
-
     canvas.renderAll();
   };
-
   const setupObjectControls = (obj: fabric.Object) => {
     obj.on('selected', () => {
       store.setActiveLayer(obj.name || null);
@@ -387,8 +445,8 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
     const position = {
       x: obj.left || 0,
       y: obj.top || 0,
-      scaleX: obj.scaleX || 1,
-      scaleY: obj.scaleY || 1,
+      scaleX: obj.scaleX || 0,
+      scaleY: obj.scaleY || 0,
       angle: obj.angle || 0
     };
 
@@ -494,6 +552,7 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
         }
       });
     }
+
     //@ts-ignore
     onSave(store.editedScene);
     onClose();
@@ -703,40 +762,7 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
 
                     </div>
 
-                    <div className="layers_pos">
-                      {store.layerProperties ? (
-                        <>
-                          <div className="property-row">
-                            <label>Position X</label>
-                            <p>{Math.round(store.layerProperties.left ?? 0)}</p>
-                          </div>
 
-                          <div className="property-row">
-                            <label>Position Y</label>
-                            <p>{Math.round(store.layerProperties.top ?? 0)}</p>
-                          </div>
-
-                          <div className="property-row">
-                            <label>Rotation</label>
-                            <p>{Math.round(store.layerProperties.angle ?? 0)}</p>
-                          </div>
-
-                          <div className="property-row">
-                            <label>Scale X</label>
-                            <p>{(store.layerProperties.scaleX ? Math.round(store.layerProperties.scaleX * 100) / 100 : 1)}</p>
-                          </div>
-
-                          <div className="property-row">
-                            <label>Scale Y</label>
-                            <p>{(store.layerProperties.scaleY ? Math.round(store.layerProperties.scaleY * 100) / 100 : 1)}</p>
-                          </div>
-                        </>
-                      ) : (
-                        <div className="property-row">
-                          <p>No layer selected</p>
-                        </div>
-                      )}
-                    </div>
                   </div>
                 ) : (
                   <div className="no-layer-selected">

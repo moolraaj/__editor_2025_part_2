@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useContext } from 'react';
+import React, { useContext, useEffect } from 'react';
 import { FaTimes } from 'react-icons/fa';
 import { API_URL } from '@/utils/constants';
 import { StoreContext } from '@/store';
@@ -45,6 +45,16 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   const [editingSceneIndex, setEditingSceneIndex] = React.useState<number | null>(null);
 
 
+
+  useEffect(() => {
+    console.log(`tempScenes`)
+    console.log(tempScenes)
+  }, [])
+
+  console.log(`store.editedScene`)
+  console.log(store.editedScene)
+
+
   React.useEffect(() => {
     if (showResultPopup && payloads.length > 0 && tempScenes.length === 0) {
 
@@ -56,6 +66,8 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
         tts_audio_url: p.tts_audio_url || [],
         elementPositions: {},
         textProperties: {},
+        elements: [] as ScenePayloadWithEdits['elements'],
+
       }));
       setTempScenes(initial);
     }
@@ -89,29 +101,36 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
 
   const handleSaveEditedScene = (edited: ScenePayloadWithEdits) => {
     setTempScenes(prev =>
-      prev.map((s, i) => (i === editingSceneIndex ? edited : s))
-    );
+      prev.map((s, i) => (i === editingSceneIndex ? {
+        ...edited,
+        svgs: s.svgs || [],
+        backgrounds: s.backgrounds || [],
+      } : s)
+      ));
     setEditingSceneIndex(null);
   };
 
-
-  console.log(`tempScenes`)
-  console.log(tempScenes)
   const handleAddToCanvas = () => {
     tempScenes.forEach(scenePayload => {
+      const elements = (scenePayload.elements || []).map(element => ({
+        ...element,
+     
+        properties: {
+          ...(element.properties || {}),
+
+          src: element.type === 'svg' && element.content
+            ? `data:image/svg+xml;base64,${btoa(element.content)}`
+            : element.properties?.src
+        }
+      }));
+
       store.addSceneResource({
-        //@ts-ignore
-        backgrounds: scenePayload.editedBackgrounds!,
-        //@ts-ignore
-        gifs: scenePayload.editedSvgs!,
-        //@ts-ignore
+        backgrounds: scenePayload.editedBackgrounds || [],
+        gifs: scenePayload.editedSvgs || [],
         animations: scenePayload.animations || [],
-        //@ts-ignore
-        elements: [],
-        //@ts-ignore
-        text: scenePayload.editedText!,
-        //@ts-ignore
-        tts_audio_url: scenePayload.tts_audio_url!,
+        elements: elements,
+        text: scenePayload.editedText || [],
+        tts_audio_url: scenePayload.tts_audio_url || [],
       });
     });
     store.refreshElements();
