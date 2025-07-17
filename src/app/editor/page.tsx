@@ -14,6 +14,7 @@ function EditorPage() {
   console.log(`API_URL`)
   console.log(API_URL)
 },[])
+ 
   return (
     <DynmicEditor />
   );
