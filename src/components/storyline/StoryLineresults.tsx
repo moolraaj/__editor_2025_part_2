@@ -44,17 +44,7 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   const [tempScenes, setTempScenes] = React.useState<ScenePayloadWithEdits[]>([]);
   const [editingSceneIndex, setEditingSceneIndex] = React.useState<number | null>(null);
 
-
-
-  useEffect(() => {
-    console.log(`tempScenes`)
-    console.log(tempScenes)
-  }, [])
-
-  console.log(`store.editedScene`)
-  console.log(store.editedScene)
-
-
+ 
   React.useEffect(() => {
     if (showResultPopup && payloads.length > 0 && tempScenes.length === 0) {
 

@@ -32,6 +32,7 @@ export function initializeSceneObjectsIfMissing(
       tts: []
     };
   }
+  
   scene.gifs?.forEach((gif, i) => {
     if (!scene.fabricObjects!.gifs[i]) {
       const url = gif.svg_url;
@@ -53,8 +54,6 @@ export function initializeSceneObjectsIfMissing(
       }
     }
   });
-
-
   scene.text?.forEach((txt, i) => {
     if (!scene.fabricObjects!.texts[i]) {
       const bottom =
@@ -82,7 +81,6 @@ export function initializeSceneObjectsIfMissing(
       scene.fabricObjects!.texts[i] = t;
     }
   });
-
   scene.backgrounds?.forEach((bg, i) => {
     if (!scene.fabricObjects!.backgrounds[i]) {
       //@ts-ignore
@@ -96,7 +94,6 @@ export function initializeSceneObjectsIfMissing(
       });
     }
   });
-
   scene.tts?.forEach((ttsItem) => {
     const { start, end } = ttsItem.timeFrame;
     if (

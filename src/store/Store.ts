@@ -72,6 +72,8 @@ export class Store {
     angle: number;
   }>> = {};
   sceneModifiedStates?: Set<number>;
+  videoRegistry = new Map<string, HTMLVideoElement>();
+
 
 
 
@@ -297,16 +299,7 @@ export class Store {
       },
     }));
 
-    const nestedVideoLayers = (scene.sceneVideos || []).map((videoEl, i) => ({
-      ...videoEl,
-      id: `video-${i}-child`,
-      layerType: 'video' as const,
-      timeFrame: { start: sceneStart, end: sceneStart + NESTED_DURATION_MS },
-      placement: videoEl.placement,
-      properties: {
-        ...videoEl.properties
-      },
-    }));
+
     const sceneObj = {
       id: sceneId,
       name: `Scene ${idx + 1}`,
@@ -320,7 +313,7 @@ export class Store {
       text: nestedTextLayers,
       tts: nestedTtsLayers,
       sceneSvgs: nestedSvgLayers,
-      sceneVideos: nestedVideoLayers,
+
 
     };
 
@@ -351,7 +344,7 @@ export class Store {
         text: sceneObj.text,
         tts: sceneObj.tts,
         sceneSvgs: sceneObj.sceneSvgs,
-        sceneVideos: sceneObj.sceneVideos
+
       },
       fabricObject: undefined,
     };
@@ -1669,7 +1662,7 @@ export class Store {
       toggleVisibility(scene.fabricObjects.gifs, scene.gifs, true, is0to3000);
       toggleVisibility(scene.fabricObjects.backgrounds, scene.backgrounds);
       toggleVisibility(scene.fabricObjects.texts, scene.text);
-      toggleVisibility(scene.fabricObjects.elements, scene.elements, true, is0to3000);
+      toggleVisibility(scene.fabricObjects.elements, scene.elements);
       toggleVisibility(scene.fabricObjects.tts, scene.tts);
     });
     this.editorElements.forEach((el) => {
@@ -1739,17 +1732,14 @@ export class Store {
     this.updateAudioElements()
   }
   addVideo(index: number) {
-    const videoElement = document.getElementById(`video-${index}`);
+    const videoElement = document.getElementById(`video-${index}`)
     if (!isHtmlVideoElement(videoElement)) {
-      return;
+      return
     }
-
-    const videoDurationMs = videoElement.duration * 1000;
-    const aspectRatio = videoElement.videoWidth / videoElement.videoHeight;
-    const id = getUid();
-
-    // Build the editor element as before
-    const editorElement: VideoEditorElement = {
+    const videoDurationMs = videoElement.duration * 1000
+    const aspectRatio = videoElement.videoWidth / videoElement.videoHeight
+    const id = getUid()
+    this.addEditorElement({
       id,
       name: `Media(video) ${index + 1}`,
       type: 'video',
@@ -1766,35 +1756,14 @@ export class Store {
       properties: {
         elementId: `video-${id}`,
         src: videoElement.src,
-        effect: { type: 'none' },
+
+        effect: {
+          type: 'none',
+        },
       },
-    };
-
-    // **NEW**: if there's an active scene, push into sceneVideos
-    const active = this.activeSceneIndex;
-    if (active != null && active >= 0 && active < this.scenes.length) {
-      const sceneObj = this.scenes[active];
-      sceneObj.sceneVideos = sceneObj.sceneVideos || [];
-      sceneObj.sceneVideos.push(editorElement);
-      console.log(`Appended video to scene ${active}:`, editorElement);
-
-      // also update the SceneEditorElement so it shows in your timeline
-      const sceneElem = this.editorElements.find(
-        el => el.type === 'scene' &&
-          (el as SceneEditorElement).properties.sceneIndex === active
-      ) as SceneEditorElement | undefined;
-      if (sceneElem) {
-        (sceneElem.properties as any).sceneVideos = (sceneElem.properties as any).sceneVideos || [];
-        (sceneElem.properties as any).sceneVideos.push(editorElement);
-        this.updateEditorElement(sceneElem);
-      }
-
-    } else {
-      // no active scene → global
-      this.addEditorElement(editorElement);
-      console.log('Appended video as global layer:', editorElement);
-    }
+    })
   }
+
 
 
   addImage(index: number) {
@@ -2016,77 +1985,134 @@ export class Store {
     })
   }
   updateVideoElements() {
+    const currentTimeMs = this.currentTimeInMs;
+    if (this.activeSceneIndex !== undefined && this.scenes[this.activeSceneIndex]) {
+      const activeScene = this.scenes[this.activeSceneIndex];
+
+      activeScene.fabricObjects?.elements?.forEach((element: any) => {
+        if (element.type === 'video' && element._element && element.data) {
+          const videoElement = element._element as HTMLVideoElement;
+          const elementTimeFrame = element.data.timeFrame;
+
+          if (!elementTimeFrame) {
+            console.warn('Video element missing timeFrame data', element);
+            return;
+          }
+
+          const isElementActive = currentTimeMs >= elementTimeFrame.start &&
+            currentTimeMs <= elementTimeFrame.end;
+
+          if (this.playing && isElementActive) {
+            if (!element.data.isPlaying) {
+              const videoTime = (currentTimeMs - elementTimeFrame.start) / 1000;
+              videoElement.currentTime = Math.max(0, videoTime);
+              videoElement.muted = false;
+              videoElement.play()
+                .then(() => {
+                  element.set('data', { ...element.data, isPlaying: true });
+                  element.set('dirty', true);
+                })
+                .catch(err => console.warn('Video play error:', err));
+            }
+          } else {
+            if (element.data.isPlaying) {
+              videoElement.pause();
+              element.set('data', { ...element.data, isPlaying: false });
+              element.set('dirty', true);
+            }
+          }
+        }
+      });
+    }
+
+    // Handle global video elements
     this.editorElements
-      .filter(
-        (element): element is VideoEditorElement => element.type === 'video'
-      )
+      .filter((element): element is VideoEditorElement => element.type === 'video')
       .forEach((element) => {
-        const video = document.getElementById(
-          element.properties.elementId
-        ) as HTMLVideoElement | null
-        if (!video || !isHtmlVideoElement(video)) return
+        const video = document.getElementById(element.properties.elementId) as HTMLVideoElement | null;
+        if (!video) return;
 
-        const { start, end } = element.timeFrame
-        const current = this.currentTimeInMs
-        const inRange = current >= start && current < end
-        if (!inRange) {
-          if (!video.paused) {
-            video.pause()
-          }
-          return
-        }
-        const desiredTime = (current - start) / 1000
-        const clampedTime = Math.max(0, desiredTime)
-        if (!video.seeking && Math.abs(video.currentTime - clampedTime) > 0.2) {
-          video.currentTime = clampedTime
-        }
-        if (this.playing) {
-          if (video.paused) {
-            video
-              .play()
-              .catch((err) => console.error('Error playing video:', err))
-          }
-        } else {
-          if (!video.paused) {
-            video.pause()
-          }
-        }
-      })
-  }
-
-  updateAudioElements() {
-    this.editorElements
-      .filter(
-        (element): element is AudioEditorElement => element.type === 'audio'
-      )
-      .forEach((element) => {
-        const audio = document.getElementById(
-          element.properties.elementId
-        ) as HTMLAudioElement | null
-        if (!audio) return
-
-        const { start, end } = element.timeFrame
-        const currentTimeMs = this.currentTimeInMs
-        const isWithinRange = currentTimeMs >= start && currentTimeMs <= end
+        const { start, end } = element.timeFrame;
+        const isWithinRange = currentTimeMs >= start && currentTimeMs <= end;
 
         if (this.playing && isWithinRange) {
-          if (!(element.properties as any).isAudioPlaying) {
-            const audioTime = (currentTimeMs - start) / 1000
-            audio.currentTime = Math.max(0, audioTime)
-            audio
-              .play()
-              .catch((err) => console.warn('⚠️ Audio play error:', err))
-              ; (element.properties as any).isAudioPlaying = true
+          if (!element.properties.isPlaying) {
+            const videoTime = (currentTimeMs - start) / 1000;
+            video.currentTime = Math.max(0, videoTime);
+            video.muted = false;
+            video.play()
+              .then(() => {
+                element.properties.isPlaying = true;
+              })
+              .catch(err => console.warn('Video play error:', err));
           }
         } else {
-          if ((element.properties as any).isAudioPlaying) {
-            audio.pause()
-            audio.currentTime = 0
-              ; (element.properties as any).isAudioPlaying = false
+          if (element.properties.isPlaying) {
+            video.pause();
+            element.properties.isPlaying = false;
           }
         }
-      })
+      });
   }
+
+
+
+  updateAudioElements() {
+    const now = this.currentTimeInMs;
+
+    // 2a) Scene‑level audio (the Fabric groups you just created)
+    const scene = this.scenes[this.activeSceneIndex];
+    scene?.fabricObjects?.elements.forEach((el: any) => {
+      if (el.data?.mediaType !== 'audio') return;
+
+      const audio = el.data.mediaElement as HTMLAudioElement;
+      const { start, end } = el.data.timeFrame;
+      const inRange = now >= start && now <= end;
+
+      if (this.playing && inRange) {
+        if (!el.data.isPlaying) {
+          // sync play position & start playback
+          audio.currentTime = Math.max(0, (now - start) / 1000);
+          audio.play().catch(e => console.warn('Audio play error', e));
+          el.set('data', { ...el.data, isPlaying: true });
+        }
+      } else if (el.data.isPlaying) {
+        // out of range or paused → reset
+        audio.pause();
+        audio.currentTime = 0;
+        el.set('data', { ...el.data, isPlaying: false });
+      }
+
+      el.set('dirty', true);
+    });
+
+    // 2b) Global audio elements (if you still want to support them)
+    this.editorElements
+      .filter((e): e is AudioEditorElement => e.type === 'audio')
+      .forEach(element => {
+        const audio = document.getElementById(
+          element.properties.elementId
+        ) as HTMLAudioElement | null;
+        if (!audio) return;
+
+        const { start, end } = element.timeFrame;
+        const inRange = now >= start && now <= end;
+
+        if (this.playing && inRange) {
+          if (!(element.properties as any).isAudioPlaying) {
+            audio.currentTime = Math.max(0, (now - start) / 1000);
+            audio.play().catch(() => { });
+            (element.properties as any).isAudioPlaying = true;
+          }
+        } else if ((element.properties as any).isAudioPlaying) {
+          audio.pause();
+          audio.currentTime = 0;
+          (element.properties as any).isAudioPlaying = false;
+        }
+      });
+  }
+
+
 
 
   updateSvgElements() {
@@ -2576,6 +2602,16 @@ export class Store {
           });
           element.fabricObject = rect;
           canvas.add(rect);
+
+
+          if (!document.getElementById(element.properties.elementId)) {
+            const audioEl = document.createElement('audio');
+            audioEl.id = element.properties.elementId;
+            audioEl.src = element.properties.src;
+            audioEl.style.display = 'none';
+            document.body.appendChild(audioEl);
+          }
+
           canvas.on('object:modified', function (e) {
             if (!e.target) return;
             const target = e.target;
@@ -3087,6 +3123,108 @@ export class Store {
               scaleY: 1,
             };
             switch (childElement.type) {
+
+
+
+              case 'video': {
+                const src = childElement.properties.src;
+                if (!src) return;
+
+                const videoElement = document.createElement('video');
+                videoElement.src = src;
+                videoElement.crossOrigin = 'anonymous';
+                videoElement.preload = 'auto';
+                videoElement.id = childElement.id;
+                videoElement.style.display = 'none';
+                videoElement.muted = false;
+                videoElement.loop = childElement.properties.loop || false;
+                videoElement.playsInline = true;
+
+                let videoObj: fabric.Image;
+
+                const handleLoadedMetadata = () => {
+                  document.body.appendChild(videoElement);
+
+                  const VideoObject = fabric.util.createClass(fabric.Image, {
+                    type: 'video',
+                    initialize: function (element: HTMLVideoElement, options: any) {
+                      this.callSuper('initialize', element, options);
+                      this.set({ objectCaching: false });
+                    },
+                    _render: function (ctx: CanvasRenderingContext2D) {
+                      // Ensure video is ready and playing
+                      if (this._element.readyState > 2) {
+                        ctx.drawImage(
+                          this._element,
+                          -this.width / 2,
+                          -this.height / 2,
+                          this.width,
+                          this.height
+                        );
+                      }
+                    }
+                  });
+
+                  videoObj = new VideoObject(videoElement, {
+                    left: pos.x,
+                    top: pos.y,
+                    width: pos.width,
+                    height: pos.height,
+                    angle: pos.rotation || 0,
+                    scaleX: pos.scaleX || 1,
+                    scaleY: pos.scaleY || 1,
+                    selectable: true,
+                    name: childElement.id,
+                    data: {
+                      type: 'video',
+                      elementId: childElement.id,
+                      source: childElement,
+                      timeFrame: childElement.timeFrame,
+                      mediaType: 'video',
+                      mediaElement: videoElement,
+                      isPlaying: false
+                    }
+                  });
+
+
+                  videoElement.addEventListener('play', () => {
+                    videoObj.set('data', { ...videoObj.data, isPlaying: true });
+                    videoObj.set('dirty', true);
+                  });
+
+                  videoElement.addEventListener('pause', () => {
+                    videoObj.set('data', { ...videoObj.data, isPlaying: false });
+                    videoObj.set('dirty', true);
+                  });
+
+
+                  const renderVideo = () => {
+                    if (videoElement.readyState > 2) {
+                      videoObj.set('dirty', true);
+                      canvas.requestRenderAll();
+                    }
+                    requestAnimationFrame(renderVideo);
+                  };
+                  renderVideo();
+
+                  sceneData.fabricObjects.elements.push(videoObj);
+                  addObjectToScene(videoObj, {
+                    zIndex: 3,
+                    elementId: childElement.id,
+                    source: childElement,
+                    timeFrame: childElement.timeFrame,
+                    type: 'video'
+                  });
+                };
+
+                videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
+                videoElement.addEventListener('error', (e) => {
+                  console.error('Video error:', e);
+
+                });
+                break;
+              }
+
               case 'svg': {
 
                 const savedPos = initialLayerPositions[childElement.id] || {};
@@ -3101,8 +3239,6 @@ export class Store {
                   width: savedPos.width || childElement.placement?.width,
                   height: savedPos.height || childElement.placement?.height
                 };
-
-
                 const existingObj = sceneData.fabricObjects?.elements?.find(
                   (el: any) => el?.data?.elementId === childElement.id
                 );
@@ -3421,66 +3557,61 @@ export class Store {
                 break;
               }
               case 'audio': {
-                const obj = new fabric.Rect({
+                const audioEl = document.createElement('audio');
+                audioEl.src = childElement.properties.src!;
+                audioEl.preload = 'auto';
+                audioEl.loop = true;
+                audioEl.id = childElement.id;
+                audioEl.style.display = 'none';
+                document.body.appendChild(audioEl);
+
+                const rect = new fabric.Rect({
                   left: pos.x,
                   top: pos.y,
                   width: pos.width,
                   height: pos.height,
-                  stroke: 'blue',
-                  strokeWidth: 1,
                   fill: 'transparent',
+                  stroke: '#00f',
+                  strokeWidth: 1,
                   selectable: true,
-                  hasControls: true,
-                  lockScalingX: false,
-                  lockScalingY: false,
                 });
 
-                const group = new fabric.Group([obj], {
+                const audioGroup = new fabric.Group([rect], {
                   left: pos.x,
                   top: pos.y,
                   width: pos.width,
                   height: pos.height,
-                  visible: true,
                   selectable: true,
+                  type: 'audio',
                   data: {
-                    zIndex: 3,
+                    type: 'audio',
                     elementId: childElement.id,
-                    source: childElement,
                     timeFrame: childElement.timeFrame,
                     mediaType: 'audio',
-                    isAudioPlaying: false,
-                    played: false
-                  },
-                  name: childElement.id
+                    mediaElement: audioEl,
+                    isPlaying: false,
+                  }
                 });
 
-                if (childElement.properties.src) {
-                  const audio = document.createElement('audio');
-                  audio.src = childElement.properties.src;
-                  audio.crossOrigin = 'anonymous';
-                  audio.preload = 'auto';
-                  audio.loop = false;
-                  audio.muted = false;
-                  audio.id = childElement.id;
-                  audio.style.display = 'none';
-                  document.body.appendChild(audio);
-                  this.audioRegistry.set(childElement.id, audio);
-                  group.data.mediaElement = audio;
-                  audio.addEventListener('ended', () => {
-                    group.data.isAudioPlaying = false;
-                    group.data.played = false;
-                  });
-                  if (this.playing) {
-                    setTimeout(() => {
-                      this.updateAudioElements();
-                    }, 10);
-                  }
-                }
-                //@ts-ignore
-                sceneData.fabricObjects.elements.push(group);
-                addObjectToScene(group, group.data);
+                canvas.add(audioGroup);
+                sceneData.fabricObjects.elements.push(audioGroup);
+
+                addObjectToScene(audioGroup, {
+                  ...audioGroup.data,
+                  type: 'audio',
+                  source: childElement,
+                  elementId: childElement.id,
+                  timeFrame: childElement.timeFrame,
+                  type: 'video'
+                });
+
                 break;
               }
+
+
+
+
+
 
 
             }
@@ -3565,72 +3696,7 @@ export class Store {
             }
           });
 
-          sceneData.sceneVideos?.forEach((vid, idx) => {
-            const { start, end } = vid.timeFrame;
-            if (now < start || now > end) return;
 
-            // make sure the fabricObjects array exists
-            if (!sceneData.fabricObjects.sceneVideos) {
-              sceneData.fabricObjects.sceneVideos = [];
-            }
-
-            let videoObj = sceneData.fabricObjects.sceneVideos[idx];
-            if (!videoObj) {
-              const videoEl = document.getElementById(vid.properties.elementId) as HTMLVideoElement;
-              if (!videoEl) return;
-
-              videoObj = new fabric.CoverVideo(videoEl, {
-                name: vid.id,
-                left: vid.placement.x,
-                top: vid.placement.y,
-                width: vid.placement.width,
-                height: vid.placement.height,
-                angle: vid.placement.rotation,
-                selectable: true,
-                objectCaching: false,
-              });
-
-              sceneData.fabricObjects.sceneVideos[idx] = videoObj;
-              addObjectToScene(videoObj, {
-                zIndex: 2,
-                elementId: vid.id,
-                source: vid,
-                timeFrame: vid.timeFrame,
-              });
-
-              videoObj.on('selected', () => this.setSelectedElement(vid));
-              this.canvas?.on('object:modified', e => {
-                if (e.target !== videoObj) return;
-                const p = vid.placement;
-                const updated = {
-                  ...p,
-                  x: videoObj.left!,
-                  y: videoObj.top!,
-                  rotation: videoObj.angle!,
-                  width: videoObj.width! * (videoObj.scaleX!),
-                  height: videoObj.height! * (videoObj.scaleY!),
-                  scaleX: 1,
-                  scaleY: 1,
-                };
-                this.updateEditorElement({ ...vid, placement: updated });
-              });
-            } else {
-              videoObj.set({
-                visible: true,
-                left: vid.placement.x,
-                top: vid.placement.y,
-                width: vid.placement.width,
-                height: vid.placement.height,
-                angle: vid.placement.rotation,
-              });
-              addObjectToScene(videoObj, {
-                zIndex: 2,
-                elementId: vid.id,
-                source: vid,
-                timeFrame: vid.timeFrame,
-              });
-            }
-          });
 
 
 

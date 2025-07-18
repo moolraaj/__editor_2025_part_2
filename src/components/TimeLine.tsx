@@ -28,7 +28,7 @@ export const TimeLine: React.FC = observer(() => {
         (e as SceneEditorElement).properties.sceneIndex === idx
     ) as SceneEditorElement | undefined
   );
-console.log(store.scenes)
+ 
   const handleSceneClick = (idx: number) => {
     const sceneStartTime = sceneTimings[idx].start;
     store.setCurrentTimeInMs(sceneStartTime);
