@@ -175,6 +175,8 @@ export const TimeFrameView: React.FC<TimeFrameViewProps> = observer(
         //@ts-ignore
         ...(scene.text || []).map((l) => ({ ...l, layerType: "text" })),
         ...(scene.tts || []).map((l) => ({ ...l, layerType: "tts" })),
+        ...(scene.sceneSvgs || []).map((l) => ({ ...l, layerType: "svg" })),
+        ...(scene.sceneVideos || []).map((l) => ({ ...l, layerType: "video" })),
       ];
 
       return (

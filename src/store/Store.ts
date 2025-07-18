@@ -285,7 +285,28 @@ export class Store {
       audioElement: Object.assign(new Audio(`${API_URL}${url}`), { preload: 'auto' })
     }));
 
+    const nestedSvgLayers = (scene.sceneSvgs || []).map((svgEl, i) => ({
+      ...svgEl,
+      id: `svg-${i}-child`,
+      layerType: 'svg' as const,
+      timeFrame: { start: sceneStart, end: sceneStart + NESTED_DURATION_MS },
+      calculatedPosition: this.calculateSvgPositions((scene.sceneSvgs || []).length)[i],
+      properties: {
+        ...svgEl.properties,
+        animationType: svgEl.properties.animationType ?? undefined
+      },
+    }));
 
+    const nestedVideoLayers = (scene.sceneVideos || []).map((videoEl, i) => ({
+      ...videoEl,
+      id: `video-${i}-child`,
+      layerType: 'video' as const,
+      timeFrame: { start: sceneStart, end: sceneStart + NESTED_DURATION_MS },
+      placement: videoEl.placement,
+      properties: {
+        ...videoEl.properties
+      },
+    }));
     const sceneObj = {
       id: sceneId,
       name: `Scene ${idx + 1}`,
@@ -298,6 +319,9 @@ export class Store {
       elements: nestedElemLayers,
       text: nestedTextLayers,
       tts: nestedTtsLayers,
+      sceneSvgs: nestedSvgLayers,
+      sceneVideos: nestedVideoLayers,
+
     };
 
     //@ts-ignore
@@ -326,6 +350,8 @@ export class Store {
         //@ts-ignore
         text: sceneObj.text,
         tts: sceneObj.tts,
+        sceneSvgs: sceneObj.sceneSvgs,
+        sceneVideos: sceneObj.sceneVideos
       },
       fabricObject: undefined,
     };
@@ -1071,23 +1097,15 @@ export class Store {
 
       const layer = arr[idx];
       const orig = { ...layer.timeFrame };
+      const newStart = timeFrame.start != null ? timeFrame.start : orig.start;
+      const newEnd = timeFrame.end != null ? timeFrame.end : orig.end;
 
-      // compute candidate new start/end
-      const newStart = timeFrame.start != null
-        ? timeFrame.start
-        : orig.start;
-      let newEnd = timeFrame.end != null
-        ? timeFrame.end
-        : orig.end;
-
-      // commit the update
       arr[idx] = {
         ...layer,
         timeFrame: { start: newStart, end: newEnd },
       };
       return true;
     };
-
 
     if (
       tryUpdate(scene.backgrounds) ||
@@ -1096,12 +1114,13 @@ export class Store {
       tryUpdate(scene.elements) ||
       //@ts-ignore
       tryUpdate(scene.text) ||
-      tryUpdate(scene.tts)
+      tryUpdate(scene.tts) ||
+      tryUpdate(scene.sceneSvgs)       // ← added
     ) {
-
       const elem = this.editorElements.find(
         e => e.type === "scene" && e.properties.sceneIndex === sceneIndex
       ) as SceneEditorElement | undefined;
+
       if (elem) {
         const p = elem.properties as any;
         tryUpdate(p.backgrounds) ||
@@ -1109,7 +1128,8 @@ export class Store {
           tryUpdate(p.animations) ||
           tryUpdate(p.elements) ||
           tryUpdate(p.text) ||
-          tryUpdate(p.tts);
+          tryUpdate(p.tts) ||
+          tryUpdate(p.sceneSvgs);       // ← added
       }
 
       this.updateVideoElements();
@@ -1117,6 +1137,7 @@ export class Store {
       this.refreshAnimations();
     }
   }
+
 
   updateSceneTimeFrame(
     sceneIndex: number,
@@ -1146,23 +1167,18 @@ export class Store {
       sceneElem.timeFrame = { start: newStart, end: newEnd };
     }
 
-    // NEW: Adjust layer positions without changing durations
+    // Adjust layer positions without changing durations
     const adjustLayerPositions = (arr?: SceneLayer[]) => {
       arr?.forEach(layer => {
-        // Calculate relative position within scene (0-1)
         const positionRatio = (layer.timeFrame.start - oldStart) / oldDuration;
-
-        // Calculate new start position while keeping original duration
-        const newLayerStart = newStart + (positionRatio * newDuration);
+        const newLayerStart = newStart + positionRatio * newDuration;
         const layerDuration = layer.timeFrame.end - layer.timeFrame.start;
 
-        // Apply new position while maintaining duration
         layer.timeFrame = {
           start: Math.max(newStart, Math.min(newLayerStart, newEnd - layerDuration)),
-          end: Math.min(newEnd, Math.max(newLayerStart + layerDuration, newStart + layerDuration))
+          end: Math.min(newEnd, Math.max(newLayerStart + layerDuration, newStart + layerDuration)),
         };
 
-        // Ensure layer doesn't go outside scene boundaries
         if (layer.timeFrame.start < newStart) {
           layer.timeFrame.start = newStart;
           layer.timeFrame.end = newStart + layerDuration;
@@ -1186,6 +1202,8 @@ export class Store {
     adjustLayerPositions(scene.text);
     //@ts-ignore
     adjustLayerPositions(scene.tts);
+    //@ts-ignore
+    adjustLayerPositions(scene.sceneSvgs);   // ← added
 
     if (sceneElem) {
       const p = sceneElem.properties as any;
@@ -1195,7 +1213,9 @@ export class Store {
       adjustLayerPositions(p.elements);
       adjustLayerPositions(p.text);
       adjustLayerPositions(p.tts);
+      adjustLayerPositions(p.sceneSvgs);     // ← added
     }
+
     const startDelta = newStart - oldStart;
     if (startDelta !== 0) {
       const shiftNested = <T extends { timeFrame: TimeFrame }>(arr?: T[]) => {
@@ -1213,6 +1233,8 @@ export class Store {
       shiftNested(scene.elements);
       shiftNested(scene.text);
       shiftNested(scene.tts);
+      shiftNested(scene.sceneSvgs);            // ← added
+
       if (sceneElem) {
         const p = sceneElem.properties as any;
         shiftNested(p.backgrounds);
@@ -1221,8 +1243,10 @@ export class Store {
         shiftNested(p.elements);
         shiftNested(p.text);
         shiftNested(p.tts);
+        shiftNested(p.sceneSvgs);              // ← added
       }
     }
+
     const durationDelta = newDuration - oldDuration;
     if (durationDelta !== 0) {
       for (let i = sceneIndex + 1; i < this.scenes.length; i++) {
@@ -1231,6 +1255,7 @@ export class Store {
           start: s.timeFrame.start + durationDelta,
           end: s.timeFrame.end + durationDelta,
         };
+
         const ee = this.editorElements.find(
           e => e.type === "scene" && e.properties.sceneIndex === i
         ) as SceneEditorElement | undefined;
@@ -1240,6 +1265,7 @@ export class Store {
             end: ee.timeFrame.end + durationDelta,
           };
         }
+
         const shiftNested = <T extends { timeFrame: TimeFrame }>(arr?: T[]) => {
           arr?.forEach(layer => {
             layer.timeFrame = {
@@ -1248,12 +1274,15 @@ export class Store {
             };
           });
         };
+
         shiftNested(s.backgrounds);
         shiftNested(s.gifs);
         shiftNested(s.animations);
         shiftNested(s.elements);
         shiftNested(s.text);
         shiftNested(s.tts);
+        shiftNested(s.sceneSvgs);              // ← added
+
         if (ee) {
           const p = ee.properties as any;
           shiftNested(p.backgrounds);
@@ -1262,13 +1291,15 @@ export class Store {
           shiftNested(p.elements);
           shiftNested(p.text);
           shiftNested(p.tts);
+          shiftNested(p.sceneSvgs);            // ← added
         }
       }
     }
+
     this.maxTime = this.getMaxTime();
     this.scenesTotalTime = this.getScenesTotalTime();
     this.refreshAnimations();
-    this.setActiveScene(sceneIndex)
+    this.setActiveScene(sceneIndex);
   }
 
   addEditorElement(editorElement: EditorElement) {
@@ -1328,18 +1359,30 @@ export class Store {
     this.currentAnimations = [];
   }
   assignAnimationToSelectedSvg(animationType: string) {
-    if (!this.selectedElement || this.selectedElement.type !== 'svg') {
-      console.warn('No SVG selected.');
-      return;
-    }
-    this.clearCurrentAnimations();
-    this.selectedElement.properties.animationType = animationType;
-    this.updateEditorElement(this.selectedElement);
+    const sel = this.selectedElement;
+    if (!sel || sel.type !== 'svg') return;
 
-    console.log(
-      `Assigned animation: ${animationType} to ${this.selectedElement.id}`
-    );
+    this.clearCurrentAnimations();
+
+    // try scene first
+    const sceneSvgs = this.scenes[this.activeSceneIndex]?.sceneSvgs || [];
+    const sceneItem = sceneSvgs.find(s => s.id === sel.id);
+    if (sceneItem) {
+      sceneItem.properties.animationType = animationType;
+      // mirror back onto sel for play method
+      sel.properties.animationType = animationType;
+      console.log(`Assigned scene SVG anim="${animationType}" to ${sel.id}`);
+    } else {
+      // global SVG
+      sel.properties.animationType = animationType;
+      this.updateEditorElement(sel);
+      console.log(`Assigned global SVG anim="${animationType}" to ${sel.id}`);
+    }
   }
+
+
+
+
   applyWalkingAnimation(svgElement: fabric.Group) {
     if (!svgElement) return;
     this.clearCurrentAnimations();
@@ -1400,24 +1443,46 @@ export class Store {
       console.warn('⚠️ No SVG selected or invalid selection.');
       return;
     }
+
     this.clearCurrentAnimations();
-    const animationType = this.selectedElement.properties.animationType;
-    const fabricObject = this.selectedElement.fabricObject as fabric.Group;
-    if (!fabricObject) {
+
+    // default to the selectedElement's property
+    let animationType = this.selectedElement.properties.animationType;
+
+    // 1) Grab the correct fabric.Group *and* scene-level properties if any
+    let svgGroup: fabric.Group | undefined;
+    const sceneIdx = (this.selectedElement.properties as any).sceneIndex;
+    if (typeof sceneIdx === 'number') {
+      const sceneSvgs = this.scenes[sceneIdx]?.sceneSvgs || [];
+      const sceneItem = sceneSvgs.find(s => s.id === this.selectedElement!.id);
+      if (sceneItem) {
+        svgGroup = sceneItem.fabricObject as fabric.Group;
+        // **override** animationType from scene data
+        animationType = sceneItem.properties.animationType;
+      }
+    }
+
+    // 2) fallback to global
+    if (!svgGroup) {
+      svgGroup = this.selectedElement.fabricObject as fabric.Group;
+    }
+    if (!svgGroup) {
       console.warn('⚠️ No fabric object found for the selected SVG.');
       return;
     }
-    console.log(
-      `  🎬 Playing animation: ${animationType} for SVG ID: ${this.selectedElement.id}`
-    );
+
+    console.log(`🎬 Playing animation: ${animationType} for SVG ID: ${this.selectedElement.id}`);
+
     if (animationType === WALKING) {
-      this.applyWalkingAnimation(fabricObject);
+      this.applyWalkingAnimation(svgGroup);
     } else if (animationType === HANDSTAND) {
-      this.applyHandstandAnimation(fabricObject);
+      this.applyHandstandAnimation(svgGroup);
     } else {
       console.warn('⚠️ Invalid animation type. No animation applied.');
     }
   }
+
+
   setPlaying(playing: boolean) {
     this.playing = playing;
     this.updateVideoElements();
@@ -1428,9 +1493,11 @@ export class Store {
         scene.fabricObjects?.gifs.forEach(obj => {
           const tids: number[] = (obj as any).__timeoutIds || [];
           tids.forEach(id => clearTimeout(id));
-          delete (obj as any).__timeoutIds;
-          delete (obj as any).__hasPopped;
-          delete (obj as any).__isLooping;
+          // if further need any loop applying on the element comment these 
+
+          // delete (obj as any).__timeoutIds;
+          // delete (obj as any).__hasEverPopped;
+          // delete (obj as any).__isLooping;
         })
       );
       this.playSelectedSvgAnimation();
@@ -1531,8 +1598,8 @@ export class Store {
   updateTimeTo(newTime: number) {
     const forward = newTime > this._lastTime;
     this._lastTime = newTime;
-    this.setCurrentTimeInMs(newTime);
-    this.animationTimeLine.seek(newTime);
+    this.setCurrentTimeInMs(newTime)
+    this.animationTimeLine.seek(newTime)
     if (this.canvas) {
       this.canvas.backgroundColor = this.backgroundColor;
     }
@@ -1565,8 +1632,8 @@ export class Store {
         if (inRange) {
           this.canvas?.add(obj);
 
-          if (doPop && forward && !(obj as any).__hasPopped) {
-            (obj as any).__hasPopped = true;
+          if (doPop && forward && !(obj as any).__hasEverPopped) {
+            (obj as any).__hasEverPopped = true;  // Permanent flag
             const timeoutId = window.setTimeout(() => popAnimate(obj, this.canvas), idx * 1000);
             (obj as any).__timeoutIds = ((obj as any).__timeoutIds || []).concat(timeoutId);
           }
@@ -1614,6 +1681,9 @@ export class Store {
       }
     });
 
+
+    this.updateAudioElements()
+    this.updateVideoElements()
     this.updateSvgElements()
     this.canvas?.requestRenderAll();
   }
@@ -1669,14 +1739,17 @@ export class Store {
     this.updateAudioElements()
   }
   addVideo(index: number) {
-    const videoElement = document.getElementById(`video-${index}`)
+    const videoElement = document.getElementById(`video-${index}`);
     if (!isHtmlVideoElement(videoElement)) {
-      return
+      return;
     }
-    const videoDurationMs = videoElement.duration * 1000
-    const aspectRatio = videoElement.videoWidth / videoElement.videoHeight
-    const id = getUid()
-    this.addEditorElement({
+
+    const videoDurationMs = videoElement.duration * 1000;
+    const aspectRatio = videoElement.videoWidth / videoElement.videoHeight;
+    const id = getUid();
+
+    // Build the editor element as before
+    const editorElement: VideoEditorElement = {
       id,
       name: `Media(video) ${index + 1}`,
       type: 'video',
@@ -1693,13 +1766,37 @@ export class Store {
       properties: {
         elementId: `video-${id}`,
         src: videoElement.src,
-
-        effect: {
-          type: 'none',
-        },
+        effect: { type: 'none' },
       },
-    })
+    };
+
+    // **NEW**: if there's an active scene, push into sceneVideos
+    const active = this.activeSceneIndex;
+    if (active != null && active >= 0 && active < this.scenes.length) {
+      const sceneObj = this.scenes[active];
+      sceneObj.sceneVideos = sceneObj.sceneVideos || [];
+      sceneObj.sceneVideos.push(editorElement);
+      console.log(`Appended video to scene ${active}:`, editorElement);
+
+      // also update the SceneEditorElement so it shows in your timeline
+      const sceneElem = this.editorElements.find(
+        el => el.type === 'scene' &&
+          (el as SceneEditorElement).properties.sceneIndex === active
+      ) as SceneEditorElement | undefined;
+      if (sceneElem) {
+        (sceneElem.properties as any).sceneVideos = (sceneElem.properties as any).sceneVideos || [];
+        (sceneElem.properties as any).sceneVideos.push(editorElement);
+        this.updateEditorElement(sceneElem);
+      }
+
+    } else {
+      // no active scene → global
+      this.addEditorElement(editorElement);
+      console.log('Appended video as global layer:', editorElement);
+    }
   }
+
+
   addImage(index: number) {
     const imageElement = document.getElementById(`image-${index}`)
     if (!isHtmlImageElement(imageElement)) {
@@ -1733,167 +1830,100 @@ export class Store {
 
 
   addSvg(index: number) {
-    console.log('Adding SVG:', index)
+    console.log('Adding SVG:', index);
 
-    const svgElement = document.getElementById(
-      `svg-${index}`
-    ) as HTMLImageElement | null
+    const svgElement = document.getElementById(`svg-${index}`) as HTMLImageElement | null;
     if (!svgElement) {
-      console.error('SVG Element not found:', `svg-${index}`)
-      return
+      console.error('SVG Element not found:', `svg-${index}`);
+      return;
     }
 
-    const id = getUid()
-    const parser = new DOMParser()
-    const serializer = new XMLSerializer()
+    const id = getUid();
+    const parser = new DOMParser();
+    const serializer = new XMLSerializer();
 
     fetch(svgElement.src)
-      .then((response) => response.text())
-      .then((svgText) => {
-        const svgDoc = parser.parseFromString(svgText, 'image/svg+xml')
-        const svgRoot = svgDoc.documentElement
+      .then(res => res.text())
+      .then(svgText => {
+        const svgDoc = parser.parseFromString(svgText, 'image/svg+xml');
+        const svgRoot = svgDoc.documentElement;
         if (!svgRoot.hasAttribute('xmlns')) {
-          svgRoot.setAttribute('xmlns', 'http://www.w3.org/2000/svg')
+          svgRoot.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
         }
+
         fabric.loadSVGFromString(
           serializer.serializeToString(svgRoot),
-          (objects) => {
-            if (!objects || objects.length === 0) {
-              console.error('🚨 Failed to load SVG objects')
-              return
+          (objects, options) => {
+            if (!objects?.length) {
+              console.error('🚨 Failed to load SVG objects');
+              return;
             }
-            const objectMap = new Map<string, fabric.Object>()
-            objects.forEach((obj) => {
-              const fabricObj = obj as any
-              if (fabricObj.id) {
-                objectMap.set(fabricObj.id, fabricObj)
-              }
-            })
-            const allParts: { id: string; obj: fabric.Object }[] = []
-            const rebuildFabricObjectFromElement = (
-              element: Element
-            ): fabric.Object | null => {
-              const nodeName = element.nodeName.toLowerCase()
-              let result: fabric.Object | null = null
 
-              if (nodeName === 'g') {
-                const childFabricObjects: fabric.Object[] = []
-                Array.from(element.children).forEach((child) => {
-                  const childObj = rebuildFabricObjectFromElement(child)
-                  if (childObj) {
-                    childFabricObjects.push(childObj)
-                  }
-                })
-                const rawGroupId = element.getAttribute('id')
-                const groupId = rawGroupId || `group-${getUid()}`
-                const groupName = rawGroupId || `unnamed-group-${groupId}`
-                const group = new fabric.Group(childFabricObjects, {
-                  name: groupName,
-                  selectable: true,
-                })
-                group.toSVG = function () {
-                  const objectsSVG = this.getObjects()
-                    .map((obj) => obj.toSVG())
-                    .join('')
-                  return `<g id="${groupId}">${objectsSVG}</g>`
-                }
-                result = group
-              } else if (nodeName === 'path') {
-                const rawPathId = element.getAttribute('id')
-                const pathId = rawPathId || `path-${getUid()}`
-                if (rawPathId && objectMap.has(rawPathId)) {
-                  result = objectMap.get(rawPathId)!
-                  result.set('name', rawPathId)
+            // --- rebuild logic unchanged ---
+            const objectMap = new Map<string, fabric.Object>();
+            objects.forEach((obj: any) => {
+              if (obj.id) objectMap.set(obj.id, obj);
+            });
+
+            const allParts: { id: string; obj: fabric.Object }[] = [];
+            const rebuild = (el: Element): fabric.Object | null => {
+              const node = el.nodeName.toLowerCase();
+              let out: fabric.Object | null = null;
+
+              if (node === 'g') {
+                const children = Array.from(el.children)
+                  .map(child => rebuild(child))
+                  .filter((o): o is fabric.Object => !!o);
+                const rawId = el.getAttribute('id') || `group-${getUid()}`;
+                out = new fabric.Group(children, { name: rawId, selectable: true });
+                // override toSVG...
+              } else if (node === 'path') {
+                const rawId = el.getAttribute('id');
+                if (rawId && objectMap.has(rawId)) {
+                  out = objectMap.get(rawId)!;
+                  out.set('name', rawId);
                 } else {
-                  result = new fabric.Path('', {
-                    name: rawPathId || `unnamed-path-${pathId}`,
-                    selectable: true,
-                  })
-                }
-              } else {
-                return null
-              }
-              if (result) {
-                if (!result.name || result.name.trim() === '') {
-                  result.set(
-                    'name',
-                    nodeName === 'g'
-                      ? `unnamed-group-${(result as any).id}`
-                      : `unnamed-path-${(result as any).id}`
-                  )
-                }
-                const resultId = (result as any).id
-                if (resultId) {
-                  allParts.push({ id: resultId, obj: result })
+                  out = new fabric.Path('', { name: rawId || `unnamed-path-${getUid()}`, selectable: true });
                 }
               }
-              return result
-            }
-            const topLevelFabricObjects: fabric.Object[] = []
-            Array.from(svgRoot.children).forEach((child) => {
-              const obj = rebuildFabricObjectFromElement(child)
-              if (obj) {
-                topLevelFabricObjects.push(obj)
+              if (out) {
+                if (!out.name?.trim()) out.set('name', node);
+                allParts.push({ id: (out as any).id, obj: out });
               }
-            })
-            console.log(
-              'Complete list of all parts (groups & paths):',
-              allParts.map((p) => p.id)
-            )
-            const fullSvgGroup = new fabric.Group(topLevelFabricObjects, {
-              name: 'full-svg',
-              selectable: true,
+              return out;
+            };
 
-            })
-            const scaleFactor = 0.3
-            const canvasWidth = this.canvas?.width ?? 800
-            const canvasHeight = this.canvas?.height ?? 600
-            const groupWidth = fullSvgGroup.width || 0
-            const groupHeight = fullSvgGroup.height || 0
+            const topLevel = Array.from(svgRoot.children)
+              .map(child => rebuild(child))
+              .filter((o): o is fabric.Object => !!o);
 
-            fullSvgGroup.set({
-              left: canvasWidth / 2 - (groupWidth * scaleFactor) / 2,
-              top: canvasHeight / 2 - (groupHeight * scaleFactor) / 2,
-              scaleX: scaleFactor,
-              scaleY: scaleFactor,
-              selectable: true,
+            const fullGroup = new fabric.Group(topLevel, { name: 'full-svg', selectable: true });
+            const scale = 0.3;
+            const cw = this.canvas?.width ?? 800;
+            const ch = this.canvas?.height ?? 600;
+            fullGroup.set({
+              left: cw / 2 - (fullGroup.width! * scale) / 2,
+              top: ch / 2 - (fullGroup.height! * scale) / 2,
+              scaleX: scale,
+              scaleY: scale,
               hasControls: true,
               padding: 50,
               objectCaching: false,
+            });
 
-            })
-
-            this.canvas?.add(fullSvgGroup)
-            this.canvas?.renderAll()
-
-            console.log(
-              '✅ SVG Added to Canvas. Canvas Objects:',
-              this.canvas?.getObjects()
-            )
-            const addedSvg = fullSvgGroup.toSVG()
-            console.log('🖼️ Full SVG Group as SVG:\n', addedSvg)
-            console.log(
-              'Available SVG Parts for Animation:',
-              allParts.map((p) => p.id)
-            )
-            const allNestedObjects = this.getAllObjectsRecursively(fullSvgGroup)
-            console.log(
-              '🔎 All nested objects (including sub-groups and paths):',
-              allNestedObjects
-            )
-
+            // --- build your editor element ---
             const editorElement: SvgEditorElement = {
               id,
               name: `SVG ${index + 1}`,
               type: 'svg',
               placement: {
-                x: fullSvgGroup.left ?? 0,
-                y: fullSvgGroup.top ?? 0,
-                width: groupWidth * scaleFactor,
-                height: groupHeight * scaleFactor,
+                x: fullGroup.left!,
+                y: fullGroup.top!,
+                width: fullGroup.width! * scale,
+                height: fullGroup.height! * scale,
                 rotation: 0,
-                scaleX: fullSvgGroup.scaleX ?? 1,
-                scaleY: fullSvgGroup.scaleY ?? 1,
+                scaleX: scale,
+                scaleY: scale,
               },
               timeFrame: this.getCurrentTimeFrame(),
               properties: {
@@ -1901,26 +1931,44 @@ export class Store {
                 src: svgElement.src,
                 animationType: undefined,
               },
-              fabricObject: fullSvgGroup,
+              fabricObject: fullGroup,
+            };
+
+            // --- 1) add to canvas as before ---
+            this.canvas?.add(fullGroup);
+            this.canvas?.renderAll();
+
+            // --- 2) conditionally append to sceneSvgs or globally ---
+            const active = this.activeSceneIndex;
+            if (active != null && active >= 0 && active < this.scenes.length) {
+              // ensure sceneSvgs array exists
+              if (!Array.isArray(this.scenes[active].sceneSvgs)) {
+                this.scenes[active].sceneSvgs = [];
+              }
+              this.scenes[active].sceneSvgs.push(editorElement);
+              console.log(`Appended SVG to scene ${active}:`, editorElement);
+            } else {
+              // fallback: global layer
+              this.addEditorElement(editorElement);
+              console.log('Appended SVG as global layer:', editorElement);
             }
 
-            this.addEditorElement(editorElement)
-            this.setSelectedElement(editorElement)
+
+            this.setSelectedElement(editorElement);
           }
-        )
+        );
       })
-      .catch((error) => console.error('⚠️ Error fetching SVG:', error))
+      .catch(err => console.error('⚠️ Error fetching SVG:', err));
   }
 
+
   addAudio(index: number) {
-    const audioElement = document.getElementById(`audio-${index}`);
-    if (!isHtmlAudioElement(audioElement)) return;
-
-
-    const domId = `audio-${index}`;
-    const audioDurationMs = audioElement.duration * 1000;
-    const id = getUid();
-
+    const audioElement = document.getElementById(`audio-${index}`)
+    if (!isHtmlAudioElement(audioElement)) {
+      return
+    }
+    const audioDurationMs = audioElement.duration * 1000
+    const id = getUid()
     this.addEditorElement({
       id,
       name: `Media(audio) ${index + 1}`,
@@ -1936,10 +1984,10 @@ export class Store {
       },
       timeFrame: this.getCurrentTimeFrame(audioDurationMs),
       properties: {
-        elementId: domId,
+        elementId: `audio-${id}`,
         src: audioElement.src,
       },
-    });
+    })
   }
 
   addText(options: { text: string; fontSize: number; fontWeight: number }) {
@@ -2005,6 +2053,7 @@ export class Store {
         }
       })
   }
+
   updateAudioElements() {
     this.editorElements
       .filter(
@@ -2673,7 +2722,9 @@ export class Store {
               gifs: [],
               elements: [],
               animations: [],
-              tts: []
+              tts: [],
+              sceneSvgs: [],
+              sceneVideos: []
             };
           }
 
@@ -3305,8 +3356,6 @@ export class Store {
                 }
                 break;
               }
-
-
               case 'text': {
                 const obj = new fabric.Textbox(childElement.properties.text || 'Text', {
                   left: pos.x,
@@ -3436,6 +3485,163 @@ export class Store {
 
             }
           });
+
+          sceneData.sceneSvgs?.forEach((svgItem, i) => {
+            const now = this.currentTimeInMs;
+            const { start, end } = svgItem.timeFrame;
+            // only render while we're inside this SVG's timeframe
+            if (now < start || now > end) return;
+
+
+
+            // load it once…
+            if (!svgItem.fabricObject) {
+              fabric.loadSVGFromURL(
+                svgItem.properties.src,
+                (objects, options) => {
+                  const group = fabric.util.groupSVGElements(objects, {
+                    ...options,
+                    name: svgItem.id,
+                    left: svgItem.placement.x,
+                    top: svgItem.placement.y,
+                    scaleX: svgItem.placement.scaleX,
+                    scaleY: svgItem.placement.scaleY,
+                    angle: svgItem.placement.rotation,
+                    selectable: true,
+                    objectCaching: false,
+                  });
+
+                  svgItem.fabricObject = group;
+                  sceneData.fabricObjects.sceneSvgs![i] = group;
+
+                  addObjectToScene(group, {
+                    zIndex: 4,
+                    elementId: svgItem.id,
+                    source: svgItem,
+                    timeFrame: svgItem.timeFrame,
+                  });
+
+                  group.on('selected', () => {
+                    // svgItem is the SvgEditorElement you pushed earlier
+                    this.setSelectedElement(svgItem);
+                  });
+
+                  // listen for transforms
+                  this.canvas?.on('object:modified', e => {
+                    if (e.target !== group) return;
+                    const p = svgItem.placement;
+                    const updated = {
+                      ...p,
+                      x: group.left ?? p.x,
+                      y: group.top ?? p.y,
+                      rotation: group.angle ?? p.rotation,
+                      scaleX: group.scaleX ?? p.scaleX,
+                      scaleY: group.scaleY ?? p.scaleY,
+                    };
+                    this.updateEditorElement({ ...svgItem, placement: updated });
+                  });
+                },
+                // on failure
+                (item, error) => console.error('SVG load error', error)
+              );
+            }
+            else {
+              // already loaded: just re‑position & re‑add
+              const obj = svgItem.fabricObject!;
+              obj.set({
+                visible: true,
+                left: svgItem.placement.x,
+                top: svgItem.placement.y,
+                scaleX: svgItem.placement.scaleX,
+                scaleY: svgItem.placement.scaleY,
+                angle: svgItem.placement.rotation,
+              });
+              addObjectToScene(obj, {
+                zIndex: 4,
+                elementId: svgItem.id,
+                source: svgItem,
+                timeFrame: svgItem.timeFrame,
+              });
+            }
+          });
+
+          sceneData.sceneVideos?.forEach((vid, idx) => {
+            const { start, end } = vid.timeFrame;
+            if (now < start || now > end) return;
+
+            // make sure the fabricObjects array exists
+            if (!sceneData.fabricObjects.sceneVideos) {
+              sceneData.fabricObjects.sceneVideos = [];
+            }
+
+            let videoObj = sceneData.fabricObjects.sceneVideos[idx];
+            if (!videoObj) {
+              const videoEl = document.getElementById(vid.properties.elementId) as HTMLVideoElement;
+              if (!videoEl) return;
+
+              videoObj = new fabric.CoverVideo(videoEl, {
+                name: vid.id,
+                left: vid.placement.x,
+                top: vid.placement.y,
+                width: vid.placement.width,
+                height: vid.placement.height,
+                angle: vid.placement.rotation,
+                selectable: true,
+                objectCaching: false,
+              });
+
+              sceneData.fabricObjects.sceneVideos[idx] = videoObj;
+              addObjectToScene(videoObj, {
+                zIndex: 2,
+                elementId: vid.id,
+                source: vid,
+                timeFrame: vid.timeFrame,
+              });
+
+              videoObj.on('selected', () => this.setSelectedElement(vid));
+              this.canvas?.on('object:modified', e => {
+                if (e.target !== videoObj) return;
+                const p = vid.placement;
+                const updated = {
+                  ...p,
+                  x: videoObj.left!,
+                  y: videoObj.top!,
+                  rotation: videoObj.angle!,
+                  width: videoObj.width! * (videoObj.scaleX!),
+                  height: videoObj.height! * (videoObj.scaleY!),
+                  scaleX: 1,
+                  scaleY: 1,
+                };
+                this.updateEditorElement({ ...vid, placement: updated });
+              });
+            } else {
+              videoObj.set({
+                visible: true,
+                left: vid.placement.x,
+                top: vid.placement.y,
+                width: vid.placement.width,
+                height: vid.placement.height,
+                angle: vid.placement.rotation,
+              });
+              addObjectToScene(videoObj, {
+                zIndex: 2,
+                elementId: vid.id,
+                source: vid,
+                timeFrame: vid.timeFrame,
+              });
+            }
+          });
+
+
+
+
+
+
+
+
+
+
+
 
           const renderAllParts = () => {
             parts

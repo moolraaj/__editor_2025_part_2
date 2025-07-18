@@ -10,10 +10,7 @@ const DynmicEditor = dynamic(() => import('../../components/Editor').then(a => a
 
 
 function EditorPage() {
-  useEffect(()=>{
-  console.log(`API_URL`)
-  console.log(API_URL)
-},[])
+ 
  
   return (
     <DynmicEditor />
