@@ -122,7 +122,6 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
         text: scenePayload.editedText || [],
         tts_audio_url: scenePayload.tts_audio_url || [],
         sceneSvgs:[],
-        sceneVideos:[]
       });
     });
     store.refreshElements();

@@ -32,7 +32,7 @@ export function initializeSceneObjectsIfMissing(
       tts: []
     };
   }
-  
+
   scene.gifs?.forEach((gif, i) => {
     if (!scene.fabricObjects!.gifs[i]) {
       const url = gif.svg_url;

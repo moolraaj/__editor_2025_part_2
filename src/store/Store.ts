@@ -1986,8 +1986,35 @@ export class Store {
   }
   updateVideoElements() {
     const currentTimeMs = this.currentTimeInMs;
-    if (this.activeSceneIndex !== undefined && this.scenes[this.activeSceneIndex]) {
-      const activeScene = this.scenes[this.activeSceneIndex];
+
+    // First find the currently active scene based on time
+    let activeSceneIndex = -1;
+    this.scenes.forEach((scene, index) => {
+      if (currentTimeMs >= scene.timeFrame.start && currentTimeMs <= scene.timeFrame.end) {
+        activeSceneIndex = index;
+      }
+    });
+
+    // Pause all videos not in the active scene
+    this.scenes.forEach((scene, index) => {
+      if (index !== activeSceneIndex) {
+        scene.fabricObjects?.elements?.forEach((element: any) => {
+          if (element.type === 'video' && element._element) {
+            const videoElement = element._element as HTMLVideoElement;
+            if (element.data.isPlaying) {
+              videoElement.pause();
+              element.set('data', { ...element.data, isPlaying: false });
+              element.set('dirty', true);
+            }
+          }
+        });
+      }
+    });
+
+    // Handle videos in the active scene
+    if (activeSceneIndex !== -1 && this.scenes[activeSceneIndex]) {
+      const activeScene = this.scenes[activeSceneIndex];
+      const sceneTimeFrame = activeScene.timeFrame;
 
       activeScene.fabricObjects?.elements?.forEach((element: any) => {
         if (element.type === 'video' && element._element && element.data) {
@@ -1999,8 +2026,11 @@ export class Store {
             return;
           }
 
+          // Check if video should play based on both scene and element timeframes
           const isElementActive = currentTimeMs >= elementTimeFrame.start &&
-            currentTimeMs <= elementTimeFrame.end;
+            currentTimeMs <= elementTimeFrame.end &&
+            currentTimeMs >= sceneTimeFrame.start &&
+            currentTimeMs <= sceneTimeFrame.end;
 
           if (this.playing && isElementActive) {
             if (!element.data.isPlaying) {
@@ -2025,7 +2055,7 @@ export class Store {
       });
     }
 
-    // Handle global video elements
+    // Handle global video elements (if still needed)
     this.editorElements
       .filter((element): element is VideoEditorElement => element.type === 'video')
       .forEach((element) => {
@@ -2059,25 +2089,19 @@ export class Store {
 
   updateAudioElements() {
     const now = this.currentTimeInMs;
-
-    // 2a) Scene‑level audio (the Fabric groups you just created)
     const scene = this.scenes[this.activeSceneIndex];
     scene?.fabricObjects?.elements.forEach((el: any) => {
       if (el.data?.mediaType !== 'audio') return;
-
       const audio = el.data.mediaElement as HTMLAudioElement;
       const { start, end } = el.data.timeFrame;
       const inRange = now >= start && now <= end;
-
       if (this.playing && inRange) {
         if (!el.data.isPlaying) {
-          // sync play position & start playback
           audio.currentTime = Math.max(0, (now - start) / 1000);
           audio.play().catch(e => console.warn('Audio play error', e));
           el.set('data', { ...el.data, isPlaying: true });
         }
       } else if (el.data.isPlaying) {
-        // out of range or paused → reset
         audio.pause();
         audio.currentTime = 0;
         el.set('data', { ...el.data, isPlaying: false });
@@ -2085,8 +2109,6 @@ export class Store {
 
       el.set('dirty', true);
     });
-
-    // 2b) Global audio elements (if you still want to support them)
     this.editorElements
       .filter((e): e is AudioEditorElement => e.type === 'audio')
       .forEach(element => {
@@ -2094,10 +2116,8 @@ export class Store {
           element.properties.elementId
         ) as HTMLAudioElement | null;
         if (!audio) return;
-
         const { start, end } = element.timeFrame;
         const inRange = now >= start && now <= end;
-
         if (this.playing && inRange) {
           if (!(element.properties as any).isAudioPlaying) {
             audio.currentTime = Math.max(0, (now - start) / 1000);
@@ -3575,7 +3595,6 @@ export class Store {
                   strokeWidth: 1,
                   selectable: true,
                 });
-
                 const audioGroup = new fabric.Group([rect], {
                   left: pos.x,
                   top: pos.y,
@@ -3592,19 +3611,16 @@ export class Store {
                     isPlaying: false,
                   }
                 });
-
                 canvas.add(audioGroup);
                 sceneData.fabricObjects.elements.push(audioGroup);
-
                 addObjectToScene(audioGroup, {
                   ...audioGroup.data,
                   type: 'audio',
                   source: childElement,
                   elementId: childElement.id,
                   timeFrame: childElement.timeFrame,
-                  type: 'video'
+                  type: 'audio'
                 });
-
                 break;
               }
 
@@ -3695,16 +3711,6 @@ export class Store {
               });
             }
           });
-
-
-
-
-
-
-
-
-
-
 
 
 
