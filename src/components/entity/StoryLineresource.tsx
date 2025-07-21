@@ -1,8 +1,6 @@
-'use client';
-
 import React, { useState, useRef } from 'react';
 import { Mic } from 'lucide-react';
-import { FaMinus, FaPlus, FaTimes } from 'react-icons/fa';
+import { FaMinus, FaPlus, FaTimes, FaTrash } from 'react-icons/fa';
 import { API_URL } from '@/utils/constants';
 import '@/app/style/storyline.css';
 
@@ -13,188 +11,64 @@ interface CreateStorylinePopupProps {
   onSubmit: PayloadCallback;
 }
 
-interface FormState {
-  title: string;
-  challenge: string;
-  turningPoint: string;
-  introMain: string;
-  introSupp1: string;
-  cta: string;
-}
-
-interface Suggestion {
-  suggestion: string;
-}
-
-interface ApiResponse {
-  suggestions?: Record<string, Suggestion>;
-}
-
-export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({
-  onClose,
-  onSubmit
-}) => {
+export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({ onClose, onSubmit }) => {
   const [step, setStep] = useState<number>(0);
-  const [open, setOpen] = useState<Record<keyof FormState, boolean>>({
-    title: false,
-    challenge: false,
-    turningPoint: false,
-    introMain: false,
-    introSupp1: false,
-    cta: false,
-  });
+  const [storylines, setStorylines] = useState<string[]>(Array(6).fill(''));
+  const [expanded, setExpanded] = useState<boolean[]>(Array(6).fill(false));
+  const recognitionRefs = useRef<Record<number, any>>({});
+  const [listeningIndex, setListeningIndex] = useState<number | null>(null);
 
-  const [form, setForm] = useState<FormState>({
-    title: '',
-    challenge: '',
-    turningPoint: '',
-    introMain: '',
-    introSupp1: '',
-    cta: ''
-  });
-
-  const [suggestions, setSuggestions] = useState<Partial<Record<keyof FormState, string>>>({});
-  const recognitionRefs = useRef<Partial<Record<keyof FormState, any>>>({});
-  const [listeningField, setListeningField] = useState<keyof FormState | null>(null);
-
-  const toggle = (field: keyof FormState) => {
-    setOpen(prev => {
-      const state: Record<keyof FormState, boolean> = {
-        title: false,
-        challenge: false,
-        turningPoint: false,
-        introMain: false,
-        introSupp1: false,
-        cta: false,
-      };
-      state[field] = !prev[field];
-      return state;
-    });
+  const toggle = (i: number) => {
+    setExpanded(prev => prev.map((_, idx) => idx === i ? !prev[idx] : false));
   };
 
-  const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name as keyof FormState]: value }));
+  const handleChange = (i: number, value: string) => {
+    setStorylines(prev => prev.map((v, idx) => (idx === i ? value : v)));
   };
 
-  const startRecognition = (field: keyof FormState) => {
-    const SpeechRec = (window as any).SpeechRecognition ||
-                      (window as any).webkitSpeechRecognition;
-    if (!SpeechRec) {
-      alert('Speech Recognition not supported');
-      return;
-    }
+  const startRecognition = (i: number) => {
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) return alert('Speech Recognition not supported');
     const recog = new SpeechRec();
-    recognitionRefs.current[field] = recog;
-    recog.lang = 'en-US';
-    recog.interimResults = false;
-    recog.maxAlternatives = 1;
-    recog.onstart = () => setListeningField(field);
-    recog.onresult = (ev: any) => {
-      const t: string = ev.results[0][0].transcript;
-      setForm(prev => ({ ...prev, [field]: t }));
-    };
-    recog.onerror = () => setListeningField(null);
-    recog.onend = () => setListeningField(null);
-    recog.start();
-    // auto‐stop after 5s
-    setTimeout(() => recog.stop(), 5000);
+    recognitionRefs.current[i] = recog;
+    recog.lang = 'en-US'; recog.interimResults = false; recog.maxAlternatives = 1;
+    recog.onstart = () => setListeningIndex(i);
+    recog.onresult = (ev: any) => handleChange(i, ev.results[0][0].transcript);
+    recog.onerror = () => setListeningIndex(null);
+    recog.onend = () => setListeningIndex(null);
+    recog.start(); setTimeout(() => recog.stop(), 5000);
   };
 
-  const canProceed = Object.values(form).some(v => v.trim() !== '');
+  const canProceed = storylines.some(text => text.trim() !== '');
 
   const handleNext = async () => {
-    if (!canProceed) {
-      alert('Please fill at least one field to proceed.');
-      return;
-    }
-
-    // Which fields have text:
-    const fieldKeys = (Object.keys(form) as (keyof FormState)[])
-      .filter(k => form[k].trim() !== '');
-    const texts = fieldKeys.map(k => form[k]);
-
+    if (!canProceed) return alert('Please fill at least one field to proceed.');
+    const texts = storylines.filter(s => s.trim());
     const res = await fetch(`${API_URL}/search`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ texts }),
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ texts })
     });
-    if (!res.ok) {
-      console.error('Validation request failed:', res.statusText);
-      return;
-    }
-
-    // Cast the JSON to our expected shape:
-    const data = (await res.json()) as ApiResponse;
-
+    if (!res.ok) return console.error('Validation failed', res.statusText);
+    const data = await res.json();
     if (data.suggestions) {
-      const newSug: Partial<Record<keyof FormState, string>> = {};
-      Object.entries(data.suggestions).forEach(([idx, obj]) => {
-        const i = Number(idx);
-        const field = fieldKeys[i];
-        newSug[field] = obj.suggestion;
-      });
-      setSuggestions(newSug);
+      // suggestions handling
       return;
     }
-
-    setSuggestions({});
     setStep(1);
   };
 
   const handlePrev = () => setStep(0);
+  const handleSubmit = () => onSubmit(storylines.filter(s => s.trim()));
 
-  const handleSubmit = () => {
-    const sentences = (Object.keys(form) as (keyof FormState)[])
-      .map(k => form[k])
-      .filter(s => s.trim() !== '');
-    onSubmit(sentences);
+  const addField = () => {
+    if (storylines.length >= 10) return;
+    setStorylines(prev => [...prev, '']);
+    setExpanded(prev => [...prev, false]);
   };
 
-  const renderField = (
-    field: keyof FormState,
-    placeholder: string,
-    multiline = false,
-    rows = 2
-  ) => (
-    <div className="relative mb-4" key={field}>
-      {multiline ? (
-        <textarea
-          name={field}
-          rows={rows}
-          placeholder={listeningField === field ? 'Listening…' : placeholder}
-          value={form[field]}
-          onChange={handleChange}
-          className="storyline-form-input"
-        />
-      ) : (
-        <>
-          <input
-            name={field}
-            type="text"
-            placeholder={listeningField === field ? 'Listening…' : placeholder}
-            value={form[field]}
-            onChange={handleChange}
-            className="storyline-form-input"
-          />
-          {suggestions[field] && (
-            <div className="mt-1 text-sm text-yellow-700 random_suggession">
-              {suggestions[field]}
-            </div>
-          )}
-        </>
-      )}
-      <button
-        type="button"
-        onClick={() => startRecognition(field)}
-        className="absolute right-2 top-2"
-      >
-        <Mic size={20} className={listeningField === field ? 'animate-pulse' : ''} />
-      </button>
-    </div>
-  );
+  const removeField = (i: number) => {
+    setStorylines(prev => prev.filter((_, idx) => idx !== i));
+    setExpanded(prev => prev.filter((_, idx) => idx !== i));
+  };
 
   return (
     <div className="popup-overlay">
@@ -209,36 +83,59 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({
         {step === 0 && (
           <>
             <div className="popup-fields">
-              {(Object.keys(form) as (keyof FormState)[]).map(field => (
-                <div key={field} className="popup-field">
+              {storylines.map((text, i) => (
+                <div key={i} className="popup-field">
                   <button
-                    onClick={() => toggle(field)}
+                    type="button"
+                    onClick={() => toggle(i)}
                     className="field-toggle-button flex items-center gap-2 relative"
                   >
-                    <div className={`status-dot ${form[field].trim() ? 'filled' : ''}`} />
-                    <span className="field-title">
-                      {field === 'introSupp1'
-                        ? 'Intro (Supplementary 1)'
-                        : field.charAt(0).toUpperCase() + field.slice(1)}
+                    <div className={`status-dot ${text.trim() ? 'filled' : ''}`} />
+                    <span className="field-title">Storyline {i + 1}</span>
+                    <span className="  field-toggle-icon">
+                      {expanded[i] ? <FaMinus fontSize={20}/> : <FaPlus fontSize={20}/>}
                     </span>
-                    <span className="ml-auto field-toggle-icon">
-                      {open[field] ? <FaMinus /> : <FaPlus />}
+                    <span onClick={() => removeField(i)}
+                      className="">
+                      <FaTrash />
                     </span>
+
                   </button>
-                  {open[field] && renderField(
-                    field,
-                    getPlaceholder(field),
-                    field === 'introMain',
-                    3
+
+                  {expanded[i] && (
+                    <div className="relative mb-4">
+                      <textarea
+                        name={`storyline-${i}`}
+                        rows={3}
+                        placeholder="write and generate your own storyline"
+                        value={text}
+                        onChange={e => handleChange(i, e.target.value)}
+                        className="storyline-form-input"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => startRecognition(i)}
+                        className="absolute right-12 top-2"
+                      >
+                        <Mic size={20} className={listeningIndex === i ? 'animate-pulse' : ''} />
+                      </button>
+
+                    </div>
                   )}
                 </div>
               ))}
             </div>
+
             <div className="popup-footer">
+
+              {storylines.length >= 10 ? <FaPlus onClick={addField} className='disable_button' fontSize={30}/> : <FaPlus onClick={addField} fontSize={30}/>}
+
+
               <button
+                type="button"
                 onClick={handleNext}
                 disabled={!canProceed}
-                className="buttons"
+                className={`buttons ${!canProceed?'disabled_next':''}`}
               >
                 Next
               </button>
@@ -250,9 +147,7 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({
           <div className="popup-confirmation">
             <p className="confirmation-text">Are you ready to generate scene?</p>
             <div className="confirmation-buttons">
-              <button onClick={handlePrev} className="buttons">
-                Prev
-              </button>
+              <button onClick={handlePrev} className="buttons">Prev</button>
               <button onClick={handleSubmit} className="buttons">
                 Generate Storyline
               </button>
@@ -262,23 +157,4 @@ export const CreateStorylinePopup: React.FC<CreateStorylinePopupProps> = ({
       </div>
     </div>
   );
-};
-
-const getPlaceholder = (field: keyof FormState): string => {
-  switch (field) {
-    case 'title':
-      return 'Describe your product or service in one sentence';
-    case 'challenge':
-      return 'Describe the main pain points your prospect is experiencing';
-    case 'turningPoint':
-      return 'Summarize the pain points and your solution';
-    case 'introMain':
-      return 'Describe the main service or feature you offer...';
-    case 'introSupp1':
-      return 'Connect you with your customers the way you never did before.';
-    case 'cta':
-      return 'Make a call-to-action telling potential clients exactly what to do next';
-    default:
-      return '';
-  }
 };

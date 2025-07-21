@@ -108,7 +108,7 @@ export const TimeFrameView: React.FC<TimeFrameViewProps> = observer(
         handleSceneClick?.(idx);
         store.canvas?.renderAll();
 
-           
+
       };
 
       const MainSceneLayer = () => (
@@ -259,7 +259,7 @@ export const TimeFrameView: React.FC<TimeFrameViewProps> = observer(
                         store.deleteSceneLayer(idx, layer.id);
                       }}
                       className="ml-2 p-1"
-                     
+
                     >
                       <FaTrash className="text-sm" />
                     </button>

@@ -1664,6 +1664,8 @@ export class Store {
       toggleVisibility(scene.fabricObjects.texts, scene.text);
       toggleVisibility(scene.fabricObjects.elements, scene.elements);
       toggleVisibility(scene.fabricObjects.tts, scene.tts);
+
+
     });
     this.editorElements.forEach((el) => {
       if (el.type !== "scene") {
@@ -2011,7 +2013,7 @@ export class Store {
       }
     });
 
-    // Handle videos in the active scene
+    // Handle videos in the active scene (original functionality)
     if (activeSceneIndex !== -1 && this.scenes[activeSceneIndex]) {
       const activeScene = this.scenes[activeSceneIndex];
       const sceneTimeFrame = activeScene.timeFrame;
@@ -2055,20 +2057,37 @@ export class Store {
       });
     }
 
-    // Handle global video elements (if still needed)
+    // Handle global video elements with scrubbing support
     this.editorElements
       .filter((element): element is VideoEditorElement => element.type === 'video')
       .forEach((element) => {
         const video = document.getElementById(element.properties.elementId) as HTMLVideoElement | null;
-        if (!video) return;
+        if (!video || !isHtmlVideoElement(video)) return;
 
         const { start, end } = element.timeFrame;
-        const isWithinRange = currentTimeMs >= start && currentTimeMs <= end;
 
-        if (this.playing && isWithinRange) {
-          if (!element.properties.isPlaying) {
-            const videoTime = (currentTimeMs - start) / 1000;
-            video.currentTime = Math.max(0, videoTime);
+        // Always update video time when playhead moves (even when not playing)
+        if (currentTimeMs >= start && currentTimeMs <= end) {
+          const desiredTime = (currentTimeMs - start) / 1000;
+          const clampedTime = Math.max(0, Math.min(desiredTime, video.duration));
+
+          if (!video.seeking && Math.abs(video.currentTime - clampedTime) > 0.1) {
+            video.currentTime = clampedTime;
+          }
+        }
+
+        // Handle play/pause state
+        const inRange = currentTimeMs >= start && currentTimeMs < end;
+        if (!inRange) {
+          if (!video.paused) {
+            video.pause();
+            element.properties.isPlaying = false;
+          }
+          return;
+        }
+
+        if (this.playing) {
+          if (video.paused) {
             video.muted = false;
             video.play()
               .then(() => {
@@ -2077,7 +2096,7 @@ export class Store {
               .catch(err => console.warn('Video play error:', err));
           }
         } else {
-          if (element.properties.isPlaying) {
+          if (!video.paused) {
             video.pause();
             element.properties.isPlaying = false;
           }
@@ -2780,7 +2799,7 @@ export class Store {
               animations: [],
               tts: [],
               sceneSvgs: [],
-              sceneVideos: []
+
             };
           }
 
@@ -3143,13 +3162,9 @@ export class Store {
               scaleY: 1,
             };
             switch (childElement.type) {
-
-
-
               case 'video': {
                 const src = childElement.properties.src;
                 if (!src) return;
-
                 const videoElement = document.createElement('video');
                 videoElement.src = src;
                 videoElement.crossOrigin = 'anonymous';
@@ -3159,9 +3174,7 @@ export class Store {
                 videoElement.muted = false;
                 videoElement.loop = childElement.properties.loop || false;
                 videoElement.playsInline = true;
-
                 let videoObj: fabric.Image;
-
                 const handleLoadedMetadata = () => {
                   document.body.appendChild(videoElement);
 
@@ -3236,7 +3249,6 @@ export class Store {
                     type: 'video'
                   });
                 };
-
                 videoElement.addEventListener('loadedmetadata', handleLoadedMetadata);
                 videoElement.addEventListener('error', (e) => {
                   console.error('Video error:', e);
@@ -3244,10 +3256,10 @@ export class Store {
                 });
                 break;
               }
-
               case 'svg': {
-
                 const savedPos = initialLayerPositions[childElement.id] || {};
+                console.log(`savedPos`)
+                console.log(savedPos)
                 const basePos = {
                   x: savedPos.x || childElement.placement?.x || x + width * 0.35,
                   y: savedPos.y || childElement.placement?.y || y + height * 0.35,
@@ -3632,7 +3644,6 @@ export class Store {
 
             }
           });
-
           sceneData.sceneSvgs?.forEach((svgItem, i) => {
             const now = this.currentTimeInMs;
             const { start, end } = svgItem.timeFrame;
@@ -3711,9 +3722,6 @@ export class Store {
               });
             }
           });
-
-
-
 
           const renderAllParts = () => {
             parts

@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+
+
+
 html,
 body {
   height: 100%;
@@ -43,12 +46,14 @@ body {
 .editor_wrap {
   display: flex;
   flex-direction: column;
-  background: #202020;
+  background: #f8f9fc;
   padding: 20px;
   border-radius: 6px;
   gap: 20px;
   width: 100%;
   max-width: 1100px;
+  position: relative;
+  color: rgba(0, 0, 0, 0.6);
 }
 
 .property-grid {
@@ -65,13 +70,28 @@ body {
 .editor-header {
   display: flex;
   justify-content: end;
+  position:absolute;
+  right: 20px;
+}
+
+.playloads button svg {
+    top: 10px;
+    right: 10px;
+    color: rgb(0 0 0 / 41%);
+}
+
+.scene-layers-list ul li button {
+    text-transform: uppercase;
+    font-size: 14px;
+    margin-left: 10px;
 }
 
 .editor-header button {
-  color: #fff;
-  padding: 6px 16px;
-  border-radius: 4px;
-  background: #ff00004f;
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: #ff00004f;
+    border-radius: 100%;
 }
 
 .ed_fixed {
@@ -91,20 +111,29 @@ body {
 }
 
 h3.l_label {
-  color: #808080;
-  font-weight: 700;
-  margin-bottom: 10px;
+    color: #fff;
+    font-weight: 700;
+    margin-bottom: 10px;
+    background: rgb(32 39 45);
+    padding: 5px 10px;
 }
 
 .scene-layers-list ul li:not(:last-child) {
   border-bottom: 1px solid #44444496;
 }
 
+button.upload-svg-btn {
+    width: 100%;
+    padding: 4px;
+    background: rgb(32 39 45);
+    color: #fff;
+}
+
 .property-row {
   display: flex;
   justify-content: space-between;
   padding: 6px;
-  border: 1px solid #44444463;
+  border-bottom: 1px solid #44444463;
 }
 
 .scene-layers-list ul li {
@@ -141,11 +170,17 @@ h3.l_label {
   gap: 30px;
 }
 
+
+
 .editor-controls {
   display: flex;
-  justify-content: end;
-  padding: 6px 12px;
-  gap: 16px;
+  justify-content: space-between;
+  gap: 8px;
+  
+}
+
+.editor-controls button {
+    width: 100%;
 }
 
 .editor-controls button:nth-child(1) {
@@ -346,10 +381,16 @@ ul.temp_canvas_layers li {
   color: #202020;
 }
 
+.playloads button svg {
+    top: 10px;
+    right: 10px;
+    color: rgb(0 0 0 / 41%);
+}
+
 
 
 .p_inner_wrapper {
-  border: 2px solid rgb(37 99 235) !important;
+  border: 1px solid rgb(32 39 45) !important;
 }
 
 .p_inner_wrapper img {
@@ -359,11 +400,11 @@ ul.temp_canvas_layers li {
 }
 
 .st_line_buttons_outer button {
-  background: rgb(59 130 246 / 50%);
-  padding: 10px 20px;
-  border-radius: 4px;
-  color: #fff;
-  margin-top: 20px;
+    background:rgb(32 39 45);
+    padding: 10px 20px;
+    border-radius: 24px;
+    color: #fff;
+    margin-top: 20px;
 }
 
 .drag_view_line {
@@ -388,10 +429,12 @@ ul.temp_canvas_layers li {
   align-items: center;
   z-index: 1000;
 }
-
+.playloads button svg {
+    color: rgba(0, 0, 0, 0.6);
+}
 .popup_content {
-  background: #808080;
-  padding: 35px;
+  background: #f8f9fc;
+  padding: 20px;
   max-height: 90vh;
   overflow-y: auto;
   border-radius: 10px;
@@ -452,12 +495,12 @@ span.active_rounder {
 
 .popup-close-button {
   position: absolute;
-  right: 18px;
-  top: 22px;
+  right: 0px;
+  top: 0px;
 }
 
 h3.popup-title {
-  padding-left: 29px;
+  padding-left: 12px;
   font-size: 22px;
   color: #bbbaba;
   font-weight: 600;
@@ -467,18 +510,26 @@ h3.popup-title {
   max-width: 1000px;
   margin: auto;
   background: rgb(32 39 45);
-  padding: 40px;
+  padding: 18px;
   position: relative;
   color: #fff;
   height: 700px;
   overflow-y: scroll;
   width: 100%;
+  border-radius: 6px;
 }
 
 #active_scene {
   border: 2px solid rgb(37 99 235) !important;
 }
+button.disabled_next {
+    background: #535151;
+    color: #808080;
+}
 
+svg.disable_button {
+    color: #808080;
+}
 .select_layers_wrapper {
   position: relative;
 }
@@ -515,17 +566,7 @@ h3.text-green {
   font-size: 12px;
 }
 
-.popup-container:before {
-  content: "";
-  position: absolute;
-  top: 0;
-  bottom: 0 !important;
-  left: 30px !important;
-  width: 5px;
-  background-color: #4caf50;
-  z-index: 0;
-
-}
+ 
 
 button.scene_button {
   position: absolute;
@@ -547,8 +588,8 @@ button.scene_button {
 
 .popup_close {
   position: absolute;
-  top: 10px;
-  right: 15px;
+  top: 20px;
+  right: 20px;
   background: transparent;
   border: none;
   font-size: 1.5rem;

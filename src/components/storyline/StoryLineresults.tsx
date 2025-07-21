@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useContext, useEffect } from 'react';
+import React, { useContext } from 'react';
 import { FaTimes } from 'react-icons/fa';
 import { API_URL } from '@/utils/constants';
 import { StoreContext } from '@/store';
 import { SceneEditor } from './TempCanvas';
 import { ScenePayloadWithEdits } from '@/types';
+import { FaEdit } from 'react-icons/fa'
 
 
 interface SvgAsset {
@@ -44,7 +45,7 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   const [tempScenes, setTempScenes] = React.useState<ScenePayloadWithEdits[]>([]);
   const [editingSceneIndex, setEditingSceneIndex] = React.useState<number | null>(null);
 
- 
+
   React.useEffect(() => {
     if (showResultPopup && payloads.length > 0 && tempScenes.length === 0) {
 
@@ -104,7 +105,7 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
     tempScenes.forEach(scenePayload => {
       const elements = (scenePayload.elements || []).map(element => ({
         ...element,
-     
+
         properties: {
           ...(element.properties || {}),
 
@@ -121,7 +122,7 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
         elements: elements,
         text: scenePayload.editedText || [],
         tts_audio_url: scenePayload.tts_audio_url || [],
-        sceneSvgs:[],
+        sceneSvgs: [],
       });
     });
     store.refreshElements();
@@ -156,7 +157,7 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
               <div
                 key={idx}
                 className="st_wrapper_inner"
-                onClick={() => handleEditScene(idx)}
+          
               >
                 <div className="heading">
                   <h3>Scene {idx + 1}</h3>
@@ -196,10 +197,21 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
                       )}
                     </>
                   )}
+                  <button
+                    className="p-1 hover:bg-gray-200 rounded scene_edit_b"
+                    onClick={e => {
+                      e.stopPropagation()
+                      handleEditScene(idx)
+                    }}
+                    aria-label={`Edit scene ${idx + 1}`}
+                  >
+                    <FaEdit  fontSize={30}/>
+                  </button>
                 </div>
               </div>
             );
           })}
+
         </div>
         <div className="st_line_buttons_outer">
           <div className="st_line_buttons_inner space-x-2">

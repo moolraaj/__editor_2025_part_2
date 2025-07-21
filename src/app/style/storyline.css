@@ -8,7 +8,7 @@
     justify-content: space-between;
     width: 100%;
     align-items: center;
-    padding: 25px 25px;
+    padding: 24px 14px;
     font-weight: 600;
 }
 
@@ -24,8 +24,21 @@ height: 50px;
 .popup-fields {
     display: flex;
     flex-direction: column;
-    gap: 15px;
-    
+    padding: 0px 30px;
+    height: 550px;
+    overflow-y: scroll;
+    position: relative;
+}
+
+.popup-fields::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 20px;
+    width: 5px;
+    background-color: #808080;
+    z-index: 0;
 }
 span.field-title {
     color: #bbbaba;
@@ -46,7 +59,7 @@ span.field-title {
 outline: none;
 }
 .storyline-form-input {
-    padding: 20px 10px;
+    padding: 12px;
     width: 100%;
     background-color: #404040;
     border-radius: 5px;
@@ -62,17 +75,11 @@ input.storyline-form-input::placeholder {
     font-size: 14px;
 }
 
-.popup-container:before {
-    content: "";
-    position: absolute;
-    top: 0;
-    bottom: 45px;
-    left: 13px;
-    width: 5px;
-    background-color: #4caf50;
-    z-index: 0;
+ 
+.popup-header {
+    position: relative;
+    margin-bottom: 20px;
 }
-
 
 .field-toggle-button {
     position: relative; /* VERY IMPORTANT */
@@ -83,7 +90,7 @@ input.storyline-form-input::placeholder {
     width: 24px;
     height: 24px;
     border-radius: 50%;
-    background-color: #d1d5db;
+    background-color: #535151;
     transition: background-color 0.3s ease;
     position: absolute;
     left: -25px;
@@ -96,7 +103,7 @@ input.storyline-form-input::placeholder {
   }
   
   .status-dot.filled {
-    background-color: #22c55e;
+    background-color: #f8f9fc;
   }
   
   .status-dot .dot-number {
@@ -109,7 +116,8 @@ input.storyline-form-input::placeholder {
 .popup-footer {
     display: flex;
     justify-content: flex-end;
-    margin-top: 50px;
+    margin-top: 30px;
+    gap: 28px;
 }
 
 

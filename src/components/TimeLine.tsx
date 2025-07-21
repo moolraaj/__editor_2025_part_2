@@ -28,7 +28,10 @@ export const TimeLine: React.FC = observer(() => {
         (e as SceneEditorElement).properties.sceneIndex === idx
     ) as SceneEditorElement | undefined
   );
- 
+
+  console.log(`store.editedScene`)
+  console.log(store.editedScene)
+
   const handleSceneClick = (idx: number) => {
     const sceneStartTime = sceneTimings[idx].start;
     store.setCurrentTimeInMs(sceneStartTime);
@@ -125,7 +128,7 @@ export const TimeLine: React.FC = observer(() => {
     //   store.canvas.requestRenderAll();
     // }
   };
-  
+
   useEffect(() => {
     if (sceneTimings.length === 0) return;
     const ct = store.currentTimeInMs;

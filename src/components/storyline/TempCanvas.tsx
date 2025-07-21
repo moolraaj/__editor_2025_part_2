@@ -4,6 +4,7 @@ import { StoreContext } from '@/store';
 import { observer } from 'mobx-react-lite';
 import { ScenePayloadWithEdits } from '@/types';
 
+
 interface SceneEditorProps {
   scene: ScenePayloadWithEdits;
   onSave: (editedScene: ScenePayloadWithEdits) => void;
@@ -13,6 +14,11 @@ interface SceneEditorProps {
 
 export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave, onClose, sceneIndex }) => {
   const store = useContext(StoreContext);
+
+  const uploadCounter = useRef(0)
+
+
+
   const [canvasObjects, setCanvasObjects] = useState<fabric.Object[]>([]);
   const sceneId = `scene-${sceneIndex}`;
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -27,7 +33,8 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
         try {
           const svgContent = ev.target?.result as string;
           if (!svgContent) return;
-          const elementId = `svg-${sceneIndex}`;
+          const idx = uploadCounter.current++;
+          const elementId = `element-${idx}`;
           const parser = new DOMParser();
           const serializer = new XMLSerializer();
           const svgDoc = parser.parseFromString(svgContent, 'image/svg+xml');
@@ -667,24 +674,10 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
     <div className="ed_fixed">
       <div className="editor_wrap">
         <div className="editor-header">
-          <button onClick={onClose}>×</button>
+
         </div>
 
-        <div className="upload-svg-container">
-          <input
-            type="file"
-            ref={fileInputRef}
-            accept=".svg"
-            onChange={handleSvgUpload}
-            style={{ display: 'none' }}
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="upload-svg-btn"
-          >
-            Upload SVG
-          </button>
-        </div>
+
 
         <div className="scene-editor-modal">
           <div className="t_l_m">
@@ -698,6 +691,25 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
             </div>
 
             <div className="mod_layerr">
+
+              <div className="upload-svg-container">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept=".svg"
+                  onChange={handleSvgUpload}
+                  style={{ display: 'none' }}
+                />
+
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="upload-svg-btn"
+                >
+                  Upload SVG
+                </button>
+
+
+              </div>
               <div className="scene-layers-list">
                 <h3 className='l_label'>All Layers</h3>
                 <ul>
@@ -728,16 +740,8 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
                   <div className="property-grid">
                     {store.layerProperties.type === 'text' && (
                       <>
-                        <div className="property-row">
-                          <label>Text Content</label>
 
 
-                        </div>
-                        <div className="property-row">
-                          <label>Font Size</label>
-
-                          <p>{store.layerProperties.fontSize || 24}</p>
-                        </div>
                         <div className="property-row">
                           <label>Font Family</label>
                           <select
@@ -771,6 +775,15 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
                 )}
               </div>
 
+              <div className="editor-controls">
+                <button onClick={handleSave} className="save-btn">
+                  Save
+                </button>
+                <button onClick={onClose} className="close-btn">
+                  x
+                </button>
+              </div>
+
 
 
             </div>
@@ -781,14 +794,9 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
 
 
 
-        <div className="editor-controls">
-          <button onClick={handleSave} className="save-btn">
-            Save Changes
-          </button>
-          <button onClick={onClose} className="close-btn">
-            Close
-          </button>
-        </div>
+
+
+
       </div>
     </div>
   );
