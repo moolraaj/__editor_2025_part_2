@@ -29,8 +29,22 @@ export function initializeSceneObjectsIfMissing(
       texts: [],
       elements: [],
       animations: [],
-      tts: []
+      tts: [],
+      sceneSvgs: []
     };
+  }
+
+  if (scene.sceneSvgs) {
+    scene.sceneSvgs.forEach((svgItem, i) => {
+      if (!scene.fabricObjects!.sceneSvgs![i] && svgItem.fabricObject) {
+        svgItem.fabricObject.set({
+          objectCaching: false,
+          dirty: true,
+          visible: false
+        });
+        scene.fabricObjects!.sceneSvgs![i] = svgItem.fabricObject;
+      }
+    });
   }
 
   scene.gifs?.forEach((gif, i) => {
