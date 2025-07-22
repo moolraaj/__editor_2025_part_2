@@ -701,7 +701,6 @@ export class Store {
   }
   setCurrentTimeInMs(time: number) {
     this.currentKeyFrame = Math.floor((time / 1000) * this.fps)
-
   }
   setSelectedMenuOption(selectedMenuOption: MenuOption) {
     this.selectedMenuOption = selectedMenuOption
@@ -1588,155 +1587,151 @@ export class Store {
 
 
 
-updateTimeTo(newTime: number) {
+  updateTimeTo(newTime: number) {
     const forward = newTime > this._lastTime;
     this._lastTime = newTime;
-    this.setCurrentTimeInMs(newTime);
-    this.animationTimeLine.seek(newTime);
-
- 
-    this.canvas?.discardActiveObject();
-    
+    this.setCurrentTimeInMs(newTime)
+    this.animationTimeLine.seek(newTime)
     if (this.canvas) {
-        this.canvas.backgroundColor = this.backgroundColor;
-  
-        this.canvas.renderOnAddRemove = false;
+      this.canvas.backgroundColor = this.backgroundColor;
     }
-
     const sceneSegments = this.editorElements
-        .filter(e => e.type === "scene")
-        .sort((a, b) =>
-            (a as SceneEditorElement).properties.sceneIndex -
-            (b as SceneEditorElement).properties.sceneIndex
-        )
-        .map(sc => {
-            const se = sc as SceneEditorElement;
-            return { sc: se, start: se.timeFrame.start, end: se.timeFrame.end };
-        });
-
+      .filter(e => e.type === "scene")
+      .sort((a, b) =>
+        (a as SceneEditorElement).properties.sceneIndex -
+        (b as SceneEditorElement).properties.sceneIndex
+      )
+      .map(sc => {
+        const se = sc as SceneEditorElement;
+        return { sc: se, start: se.timeFrame.start, end: se.timeFrame.end };
+      });
     const toggleVisibility = (
-        objects: fabric.Object[] = [],
-        sources: { timeFrame: { start: number; end: number } }[] = [],
-        doPop: boolean = false,
-        doLoop: boolean = false
+      objects: fabric.Object[] = [],
+      sources: { timeFrame: { start: number; end: number } }[] = [],
+      doPop: boolean = false,
+      doLoop: boolean = false
     ) => {
-        objects.forEach((obj, idx) => {
-            const src = sources[idx];
-            if (!src || !obj.set) return;
-            const inRange = newTime >= src.timeFrame.start && newTime <= src.timeFrame.end;
-            if (!inRange && (obj as any).__isLooping) {
-                delete (obj as any).__isLooping;
-            }
-            obj.set({ visible: inRange });
-            if (inRange) {
-                this.canvas?.add(obj);
-                if (doPop && forward && !(obj as any).__hasEverPopped) {
-                    (obj as any).__hasEverPopped = true;
-                    const timeoutId = window.setTimeout(() => popAnimate(obj, this.canvas), idx * 1000);
-                    (obj as any).__timeoutIds = ((obj as any).__timeoutIds || []).concat(timeoutId);
-                }
-                if (doLoop && forward && !(obj as any).__isLooping) {
-                    (obj as any).__isLooping = true;
-                    const timeoutId = window.setTimeout(() => loopAnimate(obj, this.canvas), idx * 1000);
-                    (obj as any).__timeoutIds = ((obj as any).__timeoutIds || []).concat(timeoutId);
-                }
-            }
-        });
+      objects.forEach((obj, idx) => {
+        const src = sources[idx];
+        if (!src || !obj.set) return;
+        const inRange = newTime >= src.timeFrame.start && newTime <= src.timeFrame.end;
+        if (!inRange && (obj as any).__isLooping) {
+          delete (obj as any).__isLooping;
+        }
+        obj.set({ visible: inRange });
+        if (inRange) {
+          this.canvas?.add(obj);
+
+          if (doPop && forward && !(obj as any).__hasEverPopped) {
+            (obj as any).__hasEverPopped = true;
+            const timeoutId = window.setTimeout(() => popAnimate(obj, this.canvas), idx * 1000);
+            (obj as any).__timeoutIds = ((obj as any).__timeoutIds || []).concat(timeoutId);
+          }
+          if (doLoop && forward && !(obj as any).__isLooping) {
+            (obj as any).__isLooping = true;
+            const timeoutId = window.setTimeout(() => loopAnimate(obj, this.canvas), idx * 1000);
+            (obj as any).__timeoutIds = ((obj as any).__timeoutIds || []).concat(timeoutId);
+          }
+        }
+      });
     };
-
     sceneSegments.forEach(({ sc }) => {
-        const idx = sc.properties.sceneIndex;
-        const scene = this.scenes[idx];
-        initializeSceneObjectsIfMissing(
-            scene,
-            idx,
-            this.editorElements as SceneEditorElement[],
-            this.playing,
-            forward,
-            newTime,
-            (ttsItem, time) => this._maybeStartTtsClip(ttsItem, time)
-        );
-        if (!scene.fabricObjects) return;
+      const idx = sc.properties.sceneIndex;
+      const scene = this.scenes[idx];
+      initializeSceneObjectsIfMissing(
+        scene,
+        idx,
+        this.editorElements as SceneEditorElement[],
+        this.playing,
+        forward,
+        newTime,
+        (ttsItem, time) => this._maybeStartTtsClip(ttsItem, time)
+      );
+      if (!scene.fabricObjects) return;
+      if (!scene.fabricObjects.sceneSvgs) {
+        scene.fabricObjects.sceneSvgs = [];
+      }
+      if (scene.sceneSvgs) {
+        scene.sceneSvgs.forEach((svgItem, i) => {
+          const inRange = newTime >= svgItem.timeFrame.start && newTime <= svgItem.timeFrame.end;
+          if (!inRange && scene.fabricObjects?.sceneSvgs?.[i]) {
+            this.canvas?.remove(scene.fabricObjects.sceneSvgs[i]);
+          }
+        });
+      }
+      if (scene.fabricObjects.background) {
+        const inRange = newTime >= sc.timeFrame.start && newTime <= sc.timeFrame.end;
+        scene.fabricObjects.background.set({ visible: inRange });
+        if (inRange) this.canvas?.add(scene.fabricObjects.background);
+      }
+      const is0to3000 = sc.timeFrame.start === 0 && sc.timeFrame.end === SCENE_ELEMENTS_LAYERS_TIME;
+      toggleVisibility(scene.fabricObjects.gifs, scene.gifs, true, is0to3000);
+      toggleVisibility(scene.fabricObjects.backgrounds, scene.backgrounds);
+      toggleVisibility(scene.fabricObjects.texts, scene.text);
+      toggleVisibility(scene.fabricObjects.tts, scene.tts);
+      toggleVisibility(scene.fabricObjects.sceneSvgs, scene.sceneSvgs, true, is0to3000);
+      toggleVisibility(scene.fabricObjects.elements, scene.elements);
 
-   
-        if (!scene.fabricObjects.sceneSvgs) {
-            scene.fabricObjects.sceneSvgs = [];
-        }
+      // Special pop animation only for SVG elements
+      if (scene.elements && scene.fabricObjects.elements) {
+        scene.elements.forEach((element, idx) => {
+          const obj = scene.fabricObjects.elements[idx];
+          if (!obj) return;
 
-   
-        if (scene.sceneSvgs) {
-       
-            const svgUpdates = scene.sceneSvgs.map((svgItem, i) => {
-                const svgObj = scene.fabricObjects.sceneSvgs[i] || svgItem.fabricObject;
-                if (!svgObj) return null;
-
-                const inRange = newTime >= svgItem.timeFrame.start && 
-                               newTime <= svgItem.timeFrame.end;
  
-                if (svgObj.visible === inRange && 
-                    this.canvas?.getObjects().includes(svgObj) === inRange) {
-                    return null;
-                }
+          const isSvg = element.type === 'svg' ||
+            (element as any).svg_url ||
+            (obj as any).type === 'group' && (obj as any)._objects?.some((o: any) => o.type === 'path');
 
-                return { svgObj, inRange };
-            }).filter(Boolean);
+          const inRange = newTime >= element.timeFrame.start && newTime <= element.timeFrame.end;
 
-     
-            svgUpdates.forEach(({ svgObj, inRange }) => {
-                svgObj.set({
-                    visible: inRange,
-                    objectCaching: false,
-                    dirty: true           
-                });
+          if (isSvg && inRange && forward && !(obj as any).__hasEverPopped) {
+            (obj as any).__hasEverPopped = true;
+            const timeoutId = window.setTimeout(() => popAnimate(obj, this.canvas), idx * 1000);
+            (obj as any).__timeoutIds = ((obj as any).__timeoutIds || []).concat(timeoutId);
+          }
+        });
+      }
 
-                if (inRange) {
-                    if (!this.canvas?.getObjects().includes(svgObj)) {
-                        this.canvas?.add(svgObj);
-                    }
-                } else {
-                    this.canvas?.remove(svgObj);
-                }
-            });
-        }
-
-        // Existing visibility handling for other elements
-        if (scene.fabricObjects.background) {
-            const inRange = newTime >= sc.timeFrame.start && newTime <= sc.timeFrame.end;
-            scene.fabricObjects.background.set({ visible: inRange });
-            if (inRange) this.canvas?.add(scene.fabricObjects.background);
-        }
-        
-        const is0to3000 = sc.timeFrame.start === 0 && sc.timeFrame.end === SCENE_ELEMENTS_LAYERS_TIME;
-        toggleVisibility(scene.fabricObjects.gifs, scene.gifs, true, is0to3000);
-        toggleVisibility(scene.fabricObjects.backgrounds, scene.backgrounds);
-        toggleVisibility(scene.fabricObjects.texts, scene.text);
-        toggleVisibility(scene.fabricObjects.elements, scene.elements);
-        toggleVisibility(scene.fabricObjects.tts, scene.tts);
+      if (scene.sceneSvgs && scene.fabricObjects.sceneSvgs) {
+        scene.sceneSvgs.forEach((svgItem, i) => {
+          const svgObj = scene.fabricObjects.sceneSvgs[i];
+          const inRange = newTime >= svgItem.timeFrame.start && newTime <= svgItem.timeFrame.end;
+          if (svgObj) {
+            svgObj.set({ visible: inRange });
+            if (inRange) {
+              if (!this.canvas?.contains(svgObj)) {
+                this.canvas?.add(svgObj);
+              }
+            } else {
+              this.canvas?.remove(svgObj);
+            }
+          } else if (svgItem.fabricObject) {
+            scene.fabricObjects.sceneSvgs[i] = svgItem.fabricObject;
+            svgItem.fabricObject.set({ visible: inRange });
+            if (inRange) {
+              this.canvas?.add(svgItem.fabricObject);
+            }
+          }
+        });
+      }
     });
-
-    // Handle non-scene elements
     this.editorElements.forEach((el) => {
-        if (el.type !== "scene") {
-            if (!el.fabricObject) return;
-            const isInside = el.timeFrame.start <= newTime && newTime <= el.timeFrame.end;
-            el.fabricObject.visible = isInside;
-        }
+      if (el.type !== "scene") {
+        if (!el.fabricObject) return;
+        const isInside =
+          el.timeFrame.start <= newTime && newTime <= el.timeFrame.end;
+        el.fabricObject.visible = isInside;
+      }
     });
-
     this.updateAudioElements();
     this.updateVideoElements();
     this.updateSvgElements();
-
- 
     if (this.canvas) {
-        this.canvas.renderOnAddRemove = true;
-        this.canvas.discardActiveObject();
-        requestAnimationFrame(() => {
-            this.canvas?.renderAll();
-        });
+      this.canvas.discardActiveObject();
+      this.canvas.renderAll();
     }
-}
-
+  }
 
 
 

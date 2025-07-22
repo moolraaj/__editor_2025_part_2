@@ -29,8 +29,7 @@ export const TimeLine: React.FC = observer(() => {
     ) as SceneEditorElement | undefined
   );
 
-  console.log(`store.editedScene`)
-  console.log(store.editedScene)
+ 
 
   const handleSceneClick = (idx: number) => {
     const sceneStartTime = sceneTimings[idx].start;

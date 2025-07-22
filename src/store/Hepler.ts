@@ -33,20 +33,14 @@ export function initializeSceneObjectsIfMissing(
       sceneSvgs: []
     };
   }
-
   if (scene.sceneSvgs) {
     scene.sceneSvgs.forEach((svgItem, i) => {
       if (!scene.fabricObjects!.sceneSvgs![i] && svgItem.fabricObject) {
-        svgItem.fabricObject.set({
-          objectCaching: false,
-          dirty: true,
-          visible: false
-        });
         scene.fabricObjects!.sceneSvgs![i] = svgItem.fabricObject;
+        scene.fabricObjects!.sceneSvgs![i]?.set({ visible: false });
       }
     });
   }
-
   scene.gifs?.forEach((gif, i) => {
     if (!scene.fabricObjects!.gifs[i]) {
       const url = gif.svg_url;
@@ -124,6 +118,15 @@ export function initializeSceneObjectsIfMissing(
       ttsItem.audioElement?.pause();
     }
   });
+
+ 
+scene.elements?.forEach((element, i) => {
+  if (!scene.fabricObjects!.elements[i]) {
+    if (element.type === 'svg' || (element as any).svg_url) {
+      (scene.fabricObjects!.elements[i] as any).__isSvg = true;
+    }
+  }
+});
 }
 
 export function popAnimate(obj: FabricObject, canvas: Canvas | null) {
