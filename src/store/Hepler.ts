@@ -119,9 +119,12 @@ export function initializeSceneObjectsIfMissing(
     }
   });
 
- 
+
 scene.elements?.forEach((element, i) => {
   if (!scene.fabricObjects!.elements[i]) {
+  
+    scene.fabricObjects!.elements[i] = new fabric.Object();  
+    
     if (element.type === 'svg' || (element as any).svg_url) {
       (scene.fabricObjects!.elements[i] as any).__isSvg = true;
     }

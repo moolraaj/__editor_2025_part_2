@@ -1672,26 +1672,37 @@ export class Store {
       toggleVisibility(scene.fabricObjects.sceneSvgs, scene.sceneSvgs, true, is0to3000);
       toggleVisibility(scene.fabricObjects.elements, scene.elements);
 
-      // Special pop animation only for SVG elements
-      if (scene.elements && scene.fabricObjects.elements) {
-        scene.elements.forEach((element, idx) => {
-          const obj = scene.fabricObjects.elements[idx];
-          if (!obj) return;
 
- 
-          const isSvg = element.type === 'svg' ||
-            (element as any).svg_url ||
-            (obj as any).type === 'group' && (obj as any)._objects?.some((o: any) => o.type === 'path');
+      scene.elements?.forEach((element, i) => {
+        if (!scene.fabricObjects!.elements[i]) {
+          let fabricObj: fabric.Object;
 
-          const inRange = newTime >= element.timeFrame.start && newTime <= element.timeFrame.end;
+          if (element.type === 'svg' || (element as any).svg_url) {
+            // Handle SVG elements
+            const url = (element as any).svg_url;
+            fabricObj = new fabric.Group([], {
+              __isSvg: true,
+              visible: false
+            });
 
-          if (isSvg && inRange && forward && !(obj as any).__hasEverPopped) {
-            (obj as any).__hasEverPopped = true;
-            const timeoutId = window.setTimeout(() => popAnimate(obj, this.canvas), idx * 1000);
-            (obj as any).__timeoutIds = ((obj as any).__timeoutIds || []).concat(timeoutId);
+            // Load the SVG and add to the group
+            if (url) {
+              fabric.loadSVGFromURL(url, (objects, options) => {
+                const svgGroup = fabric.util.groupSVGElements(objects, options);
+                (fabricObj as fabric.Group).addWithUpdate(svgGroup);
+                scene.canvas?.renderAll();
+              });
+            }
+          } else {
+            // Handle other element types (create appropriate fabric object)
+            fabricObj = new fabric.Object({
+              visible: false
+            });
           }
-        });
-      }
+
+          scene.fabricObjects!.elements[i] = fabricObj;
+        }
+      });
 
       if (scene.sceneSvgs && scene.fabricObjects.sceneSvgs) {
         scene.sceneSvgs.forEach((svgItem, i) => {
@@ -2312,204 +2323,168 @@ export class Store {
     this.saveCanvasToVideoWithAudioWebmMp4();
   }
 
-  saveCanvasToVideoWithAudioWebmMp4() {
+  async saveCanvasToVideoWithAudioWebmMp4() {
     console.log('Modified to capture video & standalone audio at correct timeline positions');
 
-    let mp4 = this.selectedVideoFormat === 'mp4';
+    const mp4 = this.selectedVideoFormat === 'mp4';
     const canvas = document.getElementById('canvas') as HTMLCanvasElement;
     const stream = canvas.captureStream(30);
 
+    // 1) Gather global clips
     const videoElements = this.editorElements.filter(isEditorVideoElement);
     const audioElements = this.editorElements.filter(isEditorAudioElement);
-    const ttsItems = this.scenes.flatMap(scene => scene.tts ?? []);
-    const hasMediaElements = videoElements.length > 0 || audioElements.length > 0 || ttsItems.length > 0;
 
-    if (hasMediaElements) {
-      if (!this.audioContext) {
-        this.audioContext = new AudioContext();
-      }
+    // 2) Gather scene clips (video & audio) from fabricObjects.elements
+    type ClipInfo = { element: HTMLMediaElement, start: number };
+    const sceneClips: ClipInfo[] = [];
 
+    for (const scene of this.scenes) {
+      (scene.fabricObjects?.elements || []).forEach((obj: any) => {
+        const tf = obj.data?.timeFrame;
+        const el = obj.data?.mediaElement as HTMLMediaElement | undefined;
+        if (tf && el && (obj.data.mediaType === 'video' || obj.data.mediaType === 'audio')) {
+          sceneClips.push({ element: el, start: tf.start });
+        }
+      });
+    }
+
+    // 3) Gather TTS clips
+    const ttsClips: ClipInfo[] = this.scenes
+      .flatMap(scene => scene.tts ?? [])
+      .map(tts => ({ element: tts.audioElement!, start: tts.timeFrame.start }));
+
+    const allClips: ClipInfo[] = [];
+
+    // A) Global video
+    videoElements.forEach(v => {
+      const el = document.getElementById(v.properties.elementId) as HTMLVideoElement | null;
+      if (el) allClips.push({ element: el, start: v.timeFrame.start });
+    });
+
+    // B) Global audio
+    audioElements.forEach(a => {
+      const el = document.getElementById(a.properties.elementId) as HTMLAudioElement | null;
+      if (el) allClips.push({ element: el, start: a.timeFrame.start });
+    });
+
+    // C) Scene video/audio
+    allClips.push(...sceneClips);
+
+    // D) TTS
+    allClips.push(...ttsClips);
+
+    const hasMedia = allClips.length > 0;
+    if (hasMedia) {
+      if (!this.audioContext) this.audioContext = new AudioContext();
       const audioContext = this.audioContext;
       const mixedAudioDestination = audioContext.createMediaStreamDestination();
 
+      // Wire every clip into the mixer and schedule its play()
+      allClips.forEach(({ element, start }) => {
+        // prime buffering
+        element.crossOrigin = 'anonymous';
+        element.preload = 'auto';
+        element.load();
 
-      videoElements.forEach((video) => {
-        const videoElement = document.getElementById(video.properties.elementId) as HTMLVideoElement;
-        if (!videoElement) {
-          console.warn('Skipping missing video element:', video.properties.elementId);
-          return;
+        // reuse or create a source node
+        let srcNode = this.audioSourceNodes.get(element);
+        if (!srcNode) {
+          srcNode = audioContext.createMediaElementSource(element);
+          this.audioSourceNodes.set(element, srcNode);
         }
+        srcNode.connect(mixedAudioDestination);
 
-        videoElement.muted = false;
-        videoElement.play().catch((err) => console.error('Video play error:', err));
-
-        let sourceNode = this.audioSourceNodes.get(video.properties.elementId);
-        if (!sourceNode) {
-          sourceNode = audioContext.createMediaElementSource(videoElement);
-          this.audioSourceNodes.set(video.properties.elementId, sourceNode);
-        }
-        sourceNode.connect(mixedAudioDestination);
-      });
-
-
-      audioElements.forEach((audio) => {
-        const audioElement = document.getElementById(audio.properties.elementId) as HTMLAudioElement;
-        if (!audioElement) {
-          console.warn('Skipping missing audio element:', audio.properties.elementId);
-          return;
-        }
-
+        // schedule playback
         setTimeout(() => {
-          audioElement.play().catch((err) => console.error('Audio play error:', err));
-        }, audio.timeFrame.start);
-
-        let sourceNode = this.audioSourceNodes.get(audio.properties.elementId);
-        if (!sourceNode) {
-          sourceNode = audioContext.createMediaElementSource(audioElement);
-          this.audioSourceNodes.set(audio.properties.elementId, sourceNode);
-        }
-        sourceNode.connect(mixedAudioDestination);
+          element.currentTime = 0;
+          element.play().catch(err => console.error('Playback error:', err));
+        }, start);
       });
 
-      const ttsPromises = ttsItems.map(ttsItem => {
-        return new Promise<void>((resolve) => {
-          const audioElement = ttsItem.audioElement as HTMLAudioElement | undefined;
-          if (!audioElement) {
-            console.warn('Skipping missing TTS audio element');
-            return resolve();
-          }
-
-
-          audioElement.muted = false;
-          audioElement.crossOrigin = 'anonymous';
-          audioElement.preload = 'auto';
-          audioElement.load();
-
-
-          let sourceNode = this.audioSourceNodes.get(ttsItem.id);
-          if (!sourceNode) {
-            sourceNode = audioContext.createMediaElementSource(audioElement);
-            this.audioSourceNodes.set(ttsItem.id, sourceNode);
-          }
-          sourceNode.connect(mixedAudioDestination);
-
-
-          const onCanPlay = () => {
-            audioElement.removeEventListener('canplay', onCanPlay);
-            resolve();
-          };
-          audioElement.addEventListener('canplay', onCanPlay);
-
-
-          setTimeout(() => {
-            this._maybeStartTtsClip(ttsItem, ttsItem.timeFrame.start);
-          }, ttsItem.timeFrame.start);
-        });
-      });
-
-
-      mixedAudioDestination.stream.getAudioTracks().forEach((track) => {
+      // merge audio into our canvas stream
+      mixedAudioDestination.stream.getAudioTracks().forEach(track => {
         stream.addTrack(track);
       });
 
+      // Now start recording
+      const recorderVideo = document.createElement('video');
+      recorderVideo.srcObject = stream;
+      recorderVideo.width = canvas.width;
+      recorderVideo.height = canvas.height;
 
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      video.height = canvas.height;
-      video.width = canvas.width;
+      recorderVideo.play().then(() => {
+        console.log('Recording started with all media scheduled');
 
+        const recorder = new MediaRecorder(stream);
+        const chunks: Blob[] = [];
 
-      Promise.all(ttsPromises).then(() => {
-        video.play().then(() => {
-          console.log('Video playback started with all TTS audio ready');
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = async () => {
+          const webmBlob = new Blob(chunks, { type: 'video/webm' });
 
-          const mediaRecorder = new MediaRecorder(stream);
-          const chunks: Blob[] = [];
+          if (mp4) {
+            showLoading();
+            try {
+              const data = new Uint8Array(await webmBlob.arrayBuffer());
+              const ffmpeg = new FFmpeg();
+              const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.2/dist/umd';
 
-          mediaRecorder.ondataavailable = function (e) {
-            chunks.push(e.data);
-          };
+              await ffmpeg.load({
+                coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
+                wasmURL: await toBlobURL(`${baseURL}/ffmpeg-core.wasm`, 'application/wasm'),
+              });
 
-          mediaRecorder.onstop = async function () {
-            const blob = new Blob(chunks, { type: 'video/webm' });
+              await ffmpeg.writeFile('video.webm', data);
+              await ffmpeg.exec([
+                '-y', '-i', 'video.webm',
+                '-c:v', 'libx264',
+                ...(hasMedia ? ['-c:a', 'aac', '-b:a', '192k'] : []),
+                '-strict', 'experimental',
+                'video.mp4'
+              ]);
 
-            if (mp4) {
-              showLoading();
-              try {
-                const data = new Uint8Array(await blob.arrayBuffer());
-                const ffmpeg = new FFmpeg();
-                const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.2/dist/umd';
-
-                await ffmpeg.load({
-                  coreURL: await toBlobURL(`${baseURL} / ffmpeg - core.js`, 'text/javascript'),
-                  wasmURL: await toBlobURL(`${baseURL} / ffmpeg - core.wasm`, 'application/wasm'),
-                });
-
-                await ffmpeg.writeFile('video.webm', data);
-                await ffmpeg.exec([
-                  '-y',
-                  '-i',
-                  'video.webm',
-                  '-c:v',
-                  'libx264',
-                  ...(hasMediaElements ? ['-c:a', 'aac', '-b:a', '192k'] : []),
-                  '-strict',
-                  'experimental',
-                  'video.mp4',
-                ]);
-
-                const output = await ffmpeg.readFile('video.mp4');
-                const outputBlob = new Blob([output], { type: 'video/mp4' });
-                const outputUrl = URL.createObjectURL(outputBlob);
-
-                const a = document.createElement('a');
-                a.download = 'video.mp4';
-                a.href = outputUrl;
-                a.click();
-              } catch (error) {
-                console.error('MP4 conversion failed:', error);
-
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = 'video.webm';
-                a.click();
-              } finally {
-                hideLoading();
-              }
-            } else {
-              const url = URL.createObjectURL(blob);
+              const out = await ffmpeg.readFile('video.mp4');
+              const mp4Blob = new Blob([out], { type: 'video/mp4' });
+              const url = URL.createObjectURL(mp4Blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'video.mp4';
+              a.click();
+            } catch (err) {
+              console.error('MP4 conversion failed:', err);
+              const url = URL.createObjectURL(webmBlob);
               const a = document.createElement('a');
               a.href = url;
               a.download = 'video.webm';
               a.click();
+            } finally {
+              hideLoading();
             }
-          };
-
-          mediaRecorder.start();
-          setTimeout(() => {
-            mediaRecorder.stop();
-          }, this.maxTime);
-        });
-      }).catch(err => {
-        console.error('Error preparing TTS audio:', err);
-      });
-    } else {
-      // Original code path when no media elements exist
-      const video = document.createElement('video');
-      video.srcObject = stream;
-      video.height = canvas.height;
-      video.width = canvas.width;
-
-      video.play().then(() => {
-        const mediaRecorder = new MediaRecorder(stream);
-        const chunks: Blob[] = [];
-
-        mediaRecorder.ondataavailable = function (e) {
-          chunks.push(e.data);
+          } else {
+            const url = URL.createObjectURL(webmBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'video.webm';
+            a.click();
+          }
         };
 
-        mediaRecorder.onstop = async function () {
+        recorder.start();
+        setTimeout(() => recorder.stop(), this.maxTime);
+      }).catch(err => {
+        console.error('Recorder video play error:', err);
+      });
+    } else {
+      // fallback: no media, just record canvas
+      const fallbackVideo = document.createElement('video');
+      fallbackVideo.srcObject = stream;
+      fallbackVideo.width = canvas.width;
+      fallbackVideo.height = canvas.height;
+      fallbackVideo.play().then(() => {
+        const recorder = new MediaRecorder(stream);
+        const chunks: Blob[] = [];
+        recorder.ondataavailable = e => chunks.push(e.data);
+        recorder.onstop = () => {
           const blob = new Blob(chunks, { type: 'video/webm' });
           const url = URL.createObjectURL(blob);
           const a = document.createElement('a');
@@ -2517,14 +2492,12 @@ export class Store {
           a.download = 'video.webm';
           a.click();
         };
-
-        mediaRecorder.start();
-        setTimeout(() => {
-          mediaRecorder.stop();
-        }, this.maxTime);
+        recorder.start();
+        setTimeout(() => recorder.stop(), this.maxTime);
       });
     }
   }
+
 
   refreshElements() {
     const store = this
