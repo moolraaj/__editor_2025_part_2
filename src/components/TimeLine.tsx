@@ -279,19 +279,11 @@ export const TimeLine: React.FC = observer(() => {
   };
 
   return (
-    <div className="flex flex-col space-y-6">
-      <SeekPlayer
-        viewMode={viewMode}
-        sceneIndex={viewingScene}
-        perSceneLength={
-          viewMode === "scene"
-            ? sceneTimings[viewingScene]?.duration || 0
-            : totalTime
-        }
-      />
+    <div className="flex flex-col space-y-6 main-time-line-wrapper">
+     
 
       {sceneElements.length !== 0 && (
-        <div className="flex border-b border-gray-600">
+        <div className="flex border-b border-gray-600 master_scene_view">
           <button
             className={`text-white px-4 py-2 ${viewMode === "master" ? "bg-gray-700" : "hover:bg-gray-800"
               }`}
@@ -312,6 +304,16 @@ export const TimeLine: React.FC = observer(() => {
           </button>
         </div>
       )}
+
+       <SeekPlayer
+        viewMode={viewMode}
+        sceneIndex={viewingScene}
+        perSceneLength={
+          viewMode === "scene"
+            ? sceneTimings[viewingScene]?.duration || 0
+            : totalTime
+        }
+      />
 
       {viewMode === "master" ? renderMasterView() : renderSceneView()}
     </div>

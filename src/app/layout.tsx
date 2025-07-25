@@ -7,6 +7,8 @@ export const metadata: Metadata = {
   title: 'Video Editor',
   description: 'Welcome to the Video Editor app'
 }
+  import { ToastContainer } from 'react-toastify';
+
 export default function RootLayout({
   children,
 }: {
@@ -15,6 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
+         <ToastContainer position="top-right"/>
         {children}
         </body>
      

@@ -120,16 +120,13 @@ export function initializeSceneObjectsIfMissing(
   });
 
 
-scene.elements?.forEach((element, i) => {
-  if (!scene.fabricObjects!.elements[i]) {
-  
-    scene.fabricObjects!.elements[i] = new fabric.Object();  
-    
-    if (element.type === 'svg' || (element as any).svg_url) {
-      (scene.fabricObjects!.elements[i] as any).__isSvg = true;
+  scene.elements?.forEach((element, i) => {
+    const fo = scene.fabricObjects!.elements[i];
+    if (fo && (element.type === 'svg' || (element as any).svg_url)) {
+      (fo as any).__isSvg = true;
     }
-  }
-});
+  });
+
 }
 
 export function popAnimate(obj: FabricObject, canvas: Canvas | null) {
@@ -189,5 +186,4 @@ export function loopAnimate(obj: FabricObject, canvas: Canvas | null) {
   canvas?.requestRenderAll();
   step1();
 }
-
 

@@ -63,8 +63,8 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
             return;
           }
           const canvas = store.sceneCanvas;
-          const centerX = canvas.width! / 2;
-          const centerY = canvas.height! / 2;
+          const centerX = canvas?.width! / 2;
+          const centerY = canvas?.height! / 2;
           const scaleFactor = 0.4;
           const parts = objects.map(obj => {
             if (obj instanceof fabric.Path) {
@@ -102,12 +102,13 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
             objectCaching: false,
           });
 
-          canvas.add(styledGroup);
+          canvas?.add(styledGroup);
           setupObjectControls(styledGroup);
 
           store.setEditedScene({
-            ...store.editedScene,
+            ...store.editedScene ?? {},
             elements: [
+              //@ts-ignore
               ...(store.editedScene.elements || []),
               {
                 id: elementId,
@@ -121,7 +122,8 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
               }
             ],
             elementPositions: {
-              ...store.editedScene.elementPositions,
+               //@ts-ignore
+              ...store?.editedScene?.elementPositions,
               [elementId]: {
                 x: centerX,
                 y: centerY,
@@ -131,7 +133,7 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
               }
             }
           });
-          canvas.renderAll();
+          canvas?.renderAll();
         } catch (error) {
           console.error('Error processing SVG:', error);
         }
@@ -162,7 +164,8 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
         obj.set('fill', newColor);
 
         if (store.editedScene && group.name) {
-          const element = store.editedScene.elements?.find(el => el.id === group.name);
+           //@ts-ignore
+          const element = store.editedScene.elements.find(el => el.id === group.name);
           if (element && element.properties?.parts) {
             const parts = element.properties.parts as Array<{
               name?: string;
@@ -216,8 +219,6 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
       if (e.selected?.length === 1) store.setActiveLayer(e.selected[0].name || null);
     });
     canvas.on('selection:cleared', () => store.setActiveLayer(null));
-
-    // cleanup only on unmount
     return () => {
       canvas.dispose();
       store.setSceneCanvas(null);
@@ -375,7 +376,7 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
 
       switch (element.type) {
         case 'svg': {
-          const parts = element.properties.parts as Array<{
+          const parts = (element.properties?.parts ?? []) as Array<{
             path: any[];
             name?: string;
             fill?: string;
@@ -421,10 +422,11 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
             store.updateSceneElementPosition(element.id, {
               x: boundingRect.left + boundingRect.width / 2,
               y: boundingRect.top + boundingRect.height / 2,
-              scaleX: group.scaleX,
-              scaleY: group.scaleY,
-              angle: group.angle,
+              scaleX: group.scaleX ?? 1,
+              scaleY: group.scaleY ?? 1,
+              angle: group.angle ?? 0
             });
+
           });
 
           break;
@@ -444,7 +446,6 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
     obj.on('scaling', () => updateLayerProperties(obj));
     obj.on('rotating', () => updateLayerProperties(obj));
   };
-
   const updateLayerProperties = (obj: fabric.Object) => {
     if (!obj.data || !store.editedScene) return;
 
@@ -492,14 +493,11 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
       store.setLayerProperties(properties);
     }
   };
-
   const handlePropertyChange = (property: string, value: any) => {
     if (!store.activeLayer || !store.sceneCanvas) return;
-
     const canvas = store.sceneCanvas;
     const obj = canvas.getActiveObject();
     if (!obj) return;
-
     switch (property) {
       case 'text':
         if (obj instanceof fabric.Textbox) obj.set('text', value);
@@ -540,11 +538,9 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
         obj.set(property, Number(value));
         break;
     }
-
     canvas.requestRenderAll();
     updateLayerProperties(obj);
   };
-
   const handleSave = () => {
     if (store.sceneCanvas) {
       store.sceneCanvas.getObjects().forEach(obj => {
@@ -565,8 +561,6 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
     onClose();
   };
 
-
-
   const handleSelectLayer = (name: string) => {
     if (!store.sceneCanvas) return;
     const obj = store.sceneCanvas.getObjects().find(o => o.name === name);
@@ -576,17 +570,14 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
       store.setActiveLayer(name);
     }
   };
-
   const handleDeleteLayer = (name: string) => {
     if (!store.sceneCanvas || !store.editedScene) return;
     const obj = store.sceneCanvas.getObjects().find(o => o.name === name);
     if (!obj) return;
-
     store.sceneCanvas.remove(obj);
     store.sceneCanvas.discardActiveObject();
     store.sceneCanvas.requestRenderAll();
     store.setActiveLayer(null);
-
     //@ts-ignore
     const updated = { ...store.editedScene };
     if (updated.elementPositions) {
@@ -599,7 +590,6 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
     }
     store.setEditedScene(updated);
   };
-
 
   useEffect(() => {
     const canvas = fabricRef.current!;
@@ -635,8 +625,6 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
     };
   }, []);
 
-
-
   useEffect(() => {
     const canvas = fabricRef.current!;
     // recursive walker
@@ -669,16 +657,11 @@ export const SceneEditor: React.FC<SceneEditorProps> = observer(({ scene, onSave
     return () => { canvas.off('object:moving', onMove); };
   }, []);
 
-
   return (
     <div className="ed_fixed">
       <div className="editor_wrap">
         <div className="editor-header">
-
         </div>
-
-
-
         <div className="scene-editor-modal">
           <div className="t_l_m">
             <div className="editor-container">

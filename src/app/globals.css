@@ -10,6 +10,10 @@ body {
   height: 100%;
 }
 
+.master_scene_view {
+  margin-top: 20px;
+}
+
 .section_bottom_margin {
   padding: 0px 0px 20px 0px;
 }
@@ -70,28 +74,28 @@ body {
 .editor-header {
   display: flex;
   justify-content: end;
-  position:absolute;
+  position: absolute;
   right: 20px;
 }
 
 .playloads button svg {
-    top: 10px;
-    right: 10px;
-    color: rgb(0 0 0 / 41%);
+  top: 10px;
+  right: 10px;
+  color: rgb(0 0 0 / 41%);
 }
 
 .scene-layers-list ul li button {
-    text-transform: uppercase;
-    font-size: 14px;
-    margin-left: 10px;
+  text-transform: uppercase;
+  font-size: 14px;
+  margin-left: 10px;
 }
 
 .editor-header button {
-    color: #fff;
-    padding: 4px 10px;
-    border-radius: 4px;
-    background: #ff00004f;
-    border-radius: 100%;
+  color: #fff;
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: #ff00004f;
+  border-radius: 100%;
 }
 
 .ed_fixed {
@@ -111,11 +115,11 @@ body {
 }
 
 h3.l_label {
-    color: #fff;
-    font-weight: 700;
-    margin-bottom: 10px;
-    background: rgb(32 39 45);
-    padding: 5px 10px;
+  color: #fff;
+  font-weight: 700;
+  margin-bottom: 10px;
+  background: rgb(32 39 45);
+  padding: 5px 10px;
 }
 
 .scene-layers-list ul li:not(:last-child) {
@@ -123,10 +127,10 @@ h3.l_label {
 }
 
 button.upload-svg-btn {
-    width: 100%;
-    padding: 4px;
-    background: rgb(32 39 45);
-    color: #fff;
+  width: 100%;
+  padding: 4px;
+  background: rgb(32 39 45);
+  color: #fff;
 }
 
 .property-row {
@@ -176,11 +180,11 @@ button.upload-svg-btn {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  
+
 }
 
 .editor-controls button {
-    width: 100%;
+  width: 100%;
 }
 
 .editor-controls button:nth-child(1) {
@@ -314,15 +318,18 @@ ul.temp_canvas_layers li {
 .st_wrapper_inner h3 {
   position: absolute;
   left: 10px;
-  background: #919191;
-  padding: 6px;
+  background: #00000094;
+  padding: 4px;
   border-radius: 4px;
   color: #fff;
   top: 10px;
+  text-wrap: nowrap;
+  font-size: 12px;
 }
 
 .st_wrapper_inner {
   position: relative;
+  height: 200px;
 }
 
 
@@ -349,8 +356,20 @@ ul.temp_canvas_layers li {
   object-fit: contain;
 }
 
+.del_sec {
+    position: absolute;
+    top: 16px;
+    left: 16px;
+}
+.del_sec button {
+    background: #d92f2fb5;
+    color: #fff;
+    margin: 0px;
+    padding: 1px 10px;
+}
 .playloads {
   position: relative;
+  height: 200px;
 }
 
 .svg_type_img {
@@ -382,9 +401,9 @@ ul.temp_canvas_layers li {
 }
 
 .playloads button svg {
-    top: 10px;
-    right: 10px;
-    color: rgb(0 0 0 / 41%);
+  top: 10px;
+  right: 10px;
+  color: rgb(0 0 0 / 41%);
 }
 
 
@@ -400,11 +419,11 @@ ul.temp_canvas_layers li {
 }
 
 .st_line_buttons_outer button {
-    background:rgb(32 39 45);
-    padding: 10px 20px;
-    border-radius: 24px;
-    color: #fff;
-    margin-top: 20px;
+  background: rgb(32 39 45);
+  padding: 10px 20px;
+  border-radius: 24px;
+  color: #fff;
+  margin-top: 20px;
 }
 
 .drag_view_line {
@@ -429,9 +448,11 @@ ul.temp_canvas_layers li {
   align-items: center;
   z-index: 1000;
 }
+
 .playloads button svg {
-    color: rgba(0, 0, 0, 0.6);
+  color: rgba(0, 0, 0, 0.6);
 }
+
 .popup_content {
   background: #f8f9fc;
   padding: 20px;
@@ -440,7 +461,7 @@ ul.temp_canvas_layers li {
   border-radius: 10px;
   position: relative;
   width: 90%;
-  max-width: 900px;
+  max-width: 990px;
 }
 
 .popup_content svg {
@@ -522,14 +543,16 @@ h3.popup-title {
 #active_scene {
   border: 2px solid rgb(37 99 235) !important;
 }
+
 button.disabled_next {
-    background: #535151;
-    color: #808080;
+  background: #535151;
+  color: #808080;
 }
 
 svg.disable_button {
-    color: #808080;
+  color: #808080;
 }
+
 .select_layers_wrapper {
   position: relative;
 }
@@ -566,7 +589,7 @@ h3.text-green {
   font-size: 12px;
 }
 
- 
+
 
 button.scene_button {
   position: absolute;

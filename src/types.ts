@@ -11,7 +11,7 @@ export type EditorElementBase<T extends string, P> = {
 };
 export type VideoEditorElement = EditorElementBase<
   "video",
-  { src: string; elementId: string; imageObject?: fabric.Image, effect: Effect }
+  { src: string; elementId: string; imageObject?: fabric.Image, effect: Effect}
 >;
 export type ImageEditorElement = EditorElementBase<
   "image",
@@ -36,12 +36,12 @@ export type TextEditorElement = EditorElementBase<
 >;
 export type SvgEditorElement = EditorElementBase<
   "svg",
-  { src: string; elementId: string; animationType?: string }
+  { src: string; elementId: string; animationType?: string,svg_url:string }
 >;
 
 export interface SceneBackground {
   background_url: string;
-  
+
 
 
 }
@@ -70,8 +70,7 @@ export type SceneEditorElement = EditorElementBase<'scene', {
   elements: EditorElement[];
   tts: TtsEditorElement[];
   text?: string;
-  
-  
+
 }>;
 
 
@@ -156,8 +155,6 @@ export interface GifResult {
   id: string;
   tags: string[];
   gif_url: string
-
-
 }
 
 
@@ -184,19 +181,33 @@ export interface AnimationTypes {
 
 }
 
-interface Background {
+export interface SvgLayer {
+  id: string;
+  svg_url: string;
+  timeFrame: TimeFrame;
+  layerType?: 'svg';
+  properties: {
+    animationType?: string;
+    [key: string]: any;
+  };
+  [key: string]: any;
+}
+
+
+
+export interface Background {
   id: string;
   name: string;
   background_url: string;
   timeFrame: TimeFrame;
 }
-interface Gif {
+export interface Gif {
   id: string;
   name: string;
   svg_url: string;
   timeFrame: TimeFrame;
 }
-interface Text {
+export interface Text {
   id: string;
   name: string;
   timeFrame: TimeFrame;
@@ -218,6 +229,7 @@ export interface FabricObjects {
   elements: fabric.Object[];
   animations: fabric.Object[];
   tts: fabric.Object[]
+  sceneSvgs: fabric.Object[]
 }
 
 export interface Scene {
@@ -228,6 +240,7 @@ export interface Scene {
   elements: EditorElement[];
   text?: Text[],
   tts?: TtsEditorElement[]
+  sceneSvgs?: SvgLayer[],
   timeFrame: TimeFrame;
   bgImage?: string
   fabricObjects?: FabricObjects;
@@ -236,7 +249,7 @@ export interface Scene {
 
 export interface SceneLayer {
   id: string;
-  layerType: 'background' | 'svg' | 'animation' | 'element' | 'text' | 'tts';
+  layerType: 'background' | 'svg' | 'animation' | 'element' | 'text' | 'tts' | 'sceneSvgs';
   name?: string;
   timeFrame: TimeFrame;
   fabricObject?: fabric.Object | fabric.Object[];
@@ -254,8 +267,8 @@ export interface SceneGif extends SceneLayer {
 export interface SceneBackground extends SceneLayer {
   background_url: string;
   name?: string;
- 
-  
+
+
 }
 
 export interface SceneAnimation extends SceneLayer {
@@ -338,21 +351,23 @@ export interface GifElement {
 }
 
 
-interface SvgAsset {
+export interface SvgAsset {
   tags: string[];
   svg_url: string;
+  src: string;
+  url: string;
 }
 
-interface BackgroundAsset {
+export interface BackgroundAsset {
   name: string;
   background_url: string;
 }
 
-interface AnimationAsset {
+export interface AnimationAsset {
   name: string;
 }
 
-interface ScenePayload {
+export interface ScenePayload {
   svgs?: SvgAsset[];
   backgrounds?: BackgroundAsset[];
   animations?: AnimationAsset[];
@@ -360,15 +375,9 @@ interface ScenePayload {
   tts_audio_url?: string[];
 }
 
- 
 
-interface ScenePayload {
-  svgs?: SvgAsset[];
-  backgrounds?: BackgroundAsset[];
-  animations?: AnimationAsset[];
-  text?: string[];
-  tts_audio_url?: string[];
-}
+
+
 
 export interface ScenePayloadWithEdits extends ScenePayload {
   editedBackgrounds: BackgroundAsset[];
@@ -391,6 +400,18 @@ export interface ScenePayloadWithEdits extends ScenePayload {
     type: 'svg' | 'text' | 'tts';
     content?: string;
     tags?: string[];
+    properties?: {
+      src?: string;
+      parts?: Array<{
+        path: any[];
+        name?: string;
+        fill?: string;
+        stroke?: string;
+        [key: string]: any;
+      }>;
+      animationType?: string;
+      [key: string]: any;
+    };
   }>;
 }
 

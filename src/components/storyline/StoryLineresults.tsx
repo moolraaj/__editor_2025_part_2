@@ -5,8 +5,10 @@ import { FaTimes } from 'react-icons/fa';
 import { API_URL } from '@/utils/constants';
 import { StoreContext } from '@/store';
 import { SceneEditor } from './TempCanvas';
-import { ScenePayloadWithEdits } from '@/types';
+import { AnimationTypes, Background, Gif, ScenePayloadWithEdits, Text } from '@/types';
 import { FaEdit } from 'react-icons/fa'
+import { TempCanvasViewer } from './TempCanvasViewer';
+import { toast } from 'react-toastify';
 
 
 interface SvgAsset {
@@ -58,8 +60,7 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
         elementPositions: {},
         textProperties: {},
         elements: [] as ScenePayloadWithEdits['elements'],
-
-      }));
+      })) as unknown as ScenePayloadWithEdits[];
       setTempScenes(initial);
     }
   }, [showResultPopup, payloads, tempScenes.length]);
@@ -116,12 +117,13 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
       }));
 
       store.addSceneResource({
-        backgrounds: scenePayload.editedBackgrounds || [],
-        gifs: scenePayload.editedSvgs || [],
-        animations: scenePayload.animations || [],
+        backgrounds: scenePayload.editedBackgrounds as unknown as Background[],
+        gifs: scenePayload.editedSvgs as unknown as Gif[],
+        animations: scenePayload.animations as unknown as AnimationTypes[],
+        //@ts-ignore
         elements: elements,
-        text: scenePayload.editedText || [],
-        tts_audio_url: scenePayload.tts_audio_url || [],
+        text: scenePayload.editedText as unknown as Text[],
+        tts_audio_url: scenePayload.tts_audio_url as unknown as string,
         sceneSvgs: [],
       });
     });
@@ -131,6 +133,24 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
   };
 
   if (!showResultPopup) return null;
+
+  const handleDeleteScene = (sceneIndex: number) => {
+    if (tempScenes.length <= 1) {
+      toast.error('You must keep at least one scene. Cannot delete the scene.')
+
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to delete Scene ${sceneIndex + 1}?`)) return;
+
+    setTempScenes((prev) => prev.filter((_, idx) => idx !== sceneIndex));
+    if (store.deleteScene) {
+      store.deleteScene(sceneIndex);
+      toast.success(`scene ${sceneIndex} deleted successfully`)
+    }
+  };
+
+
 
   return (
     <div className="popup_overlay">
@@ -153,65 +173,83 @@ const StoryLineResults: React.FC<StoryLineResultsProps> = ({
             const animations = payload.animations || [];
             const hasAny = backgrounds.length > 0 || svgs.length > 0 || animations.length > 0;
 
+            const isEdited =
+              (payload.elements && payload.elements.length > 0) ||
+              (payload.editedSvgs && payload.editedSvgs.length > 0);
+
             return (
-              <div
-                key={idx}
-                className="st_wrapper_inner"
-          
-              >
+              <div key={idx} className="st_wrapper_inner">
                 <div className="heading">
                   <h3>Scene {idx + 1}</h3>
                 </div>
                 <div className="playloads">
-                  {!hasAny ? (
-                    <p className="text-sm text-gray-500">
-                      No matching data found for this scene.
-                    </p>
-                  ) : (
-                    <>
-                      {backgrounds.length > 0 && (
-                        <div className="p_outer_wrapper">
 
-                          {backgrounds.slice(0, 1).map((bg: any, i: number) => (
-                            <div key={i} className="p_inner_wrapper">
-                              <img
-                                src={bg.background_url}
-                                alt={bg.name}
-                                className="p_img"
-                              />
+                  {isEdited ? (
+
+                    <TempCanvasViewer scene={payload} width={300} height={200} />
+                  ) : (
+
+                    <>
+                      {!hasAny ? (
+                        <p className="text-sm text-gray-500">
+                          No matching data found for this scene.
+                        </p>
+                      ) : (
+                        <>
+                          {backgrounds.length > 0 && (
+                            <div className="p_outer_wrapper">
+                              {backgrounds.slice(0, 1).map((bg: any, i: number) => (
+                                <div key={i} className="p_inner_wrapper">
+                                  <img
+                                    src={bg.background_url}
+                                    alt={bg.name}
+                                    className="p_img"
+                                  />
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
-                      )}
-                      {svgs.length > 0 && (
-                        <div className="char_type">
-                          {svgs.map((svg: any, i: number) => (
-                            <div key={i} className="svg_type_img">
-                              <img
-                                src={svg.svg_url}
-                                alt={svg.tags.join(', ')}
-                              />
+                          )}
+                          {svgs.length > 0 && (
+                            <div className="char_type">
+                              {svgs.map((svg: any, i: number) => (
+                                <div key={i} className="svg_type_img">
+                                  <img src={svg.svg_url} alt={svg.tags.join(', ')} />
+                                </div>
+                              ))}
                             </div>
-                          ))}
-                        </div>
+                          )}
+                        </>
                       )}
+
                     </>
                   )}
                   <button
                     className="p-1 hover:bg-gray-200 rounded scene_edit_b"
-                    onClick={e => {
-                      e.stopPropagation()
-                      handleEditScene(idx)
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleEditScene(idx);
                     }}
                     aria-label={`Edit scene ${idx + 1}`}
                   >
-                    <FaEdit  fontSize={30}/>
+                    <FaEdit fontSize={30} />
                   </button>
+
+                  <div className="del_sec">
+                    {tempScenes.length <= 1 ? ('') : (<>
+                      <button
+                        className="p-1 hover:bg-red-200 rounded scene_delete_b"
+                        onClick={() => handleDeleteScene(idx)}
+
+                      >  x</button>
+                    </>)}
+
+                  </div>
+
+
                 </div>
               </div>
             );
           })}
-
         </div>
         <div className="st_line_buttons_outer">
           <div className="st_line_buttons_inner space-x-2">
