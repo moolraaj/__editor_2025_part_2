@@ -108,6 +108,13 @@ export const canvasBackgroundColor = [
 ];
 
 
+export function fitCover(imgW: number, imgH: number, boxW: number, boxH: number) {
+  const s = Math.max(boxW / imgW, boxH / imgH);
+  const w = imgW * s, h = imgH * s;
+  return { s, left: (boxW - w) / 2, top: (boxH - h) / 2 };
+}
+
+
  
 
 

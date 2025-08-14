@@ -7,18 +7,26 @@ interface TempCanvasViewerProps {
     scene: ScenePayloadWithEdits;
     width?: number;
     height?: number;
+    onCanvasReady?: (canvasEl: HTMLCanvasElement | null) => void;
+    onFabricReady?: (canvasEl: HTMLCanvasElement | null) => void;
+    
 }
 
 export const TempCanvasViewer: React.FC<TempCanvasViewerProps> = ({
     scene,
     width = 200,
-    height = 200
+    height = 200,
+    onCanvasReady,
+    onFabricReady
 }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const fabricRef = useRef<fabric.Canvas | null>(null);
 
     useEffect(() => {
         if (!canvasRef.current) return;
+
+        onCanvasReady?.(canvasRef.current);
+ 
 
         if (fabricRef.current) {
             try {
@@ -56,7 +64,7 @@ export const TempCanvasViewer: React.FC<TempCanvasViewerProps> = ({
                 });
                 canvas.add(img);
                 canvas.sendToBack(img);
-            });
+            },{ crossOrigin: 'anonymous' });
         }
 
         scene.backgrounds?.slice(1).forEach((bg) => {
@@ -70,7 +78,7 @@ export const TempCanvasViewer: React.FC<TempCanvasViewerProps> = ({
                     evented: false
                 });
                 canvas.add(img);
-            });
+            },{ crossOrigin: 'anonymous' });
         });
         scene.svgs?.forEach((layer, index) => {
             const url = layer.svg_url || layer.url || layer.src;
@@ -101,7 +109,7 @@ export const TempCanvasViewer: React.FC<TempCanvasViewerProps> = ({
                     });
                     canvas.add(group);
                     canvas.renderAll();
-                });
+                }, { crossOrigin: 'anonymous' } as any);
             } else {
                 fabric.Image.fromURL(url, (img) => {
                     img.set({
@@ -116,7 +124,7 @@ export const TempCanvasViewer: React.FC<TempCanvasViewerProps> = ({
                     });
                     canvas.add(img);
                     canvas.renderAll();
-                });
+                },{ crossOrigin: 'anonymous' });
             }
         });
         scene.elements?.forEach((element, index) => {
@@ -210,7 +218,8 @@ export const TempCanvasViewer: React.FC<TempCanvasViewerProps> = ({
         });
         return () => {
             canvas.dispose();
+             onCanvasReady?.(null)
         };
-    }, [scene, width, height]);
+    }, [scene, width, height,onCanvasReady,onFabricReady]);
     return <canvas ref={canvasRef} />;
 };
